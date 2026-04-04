@@ -94,7 +94,7 @@ export function createProvider(providerName: string, settings: Settings): Provid
       );
     case 'openrouter':
       return new OpenRouterProvider(
-        cfg.model || 'meta-llama/llama-3.3-70b-instruct:free',
+        cfg.model || 'openrouter/free',
         cfg.apiKey,
         cfg.baseUrl
       );
@@ -125,7 +125,6 @@ export const PROVIDER_INFO: Record<string, { description: string; requiresKey: b
 export const PROVIDER_MODELS: Record<string, Array<{ id: string; label: string; free: boolean; recommended?: boolean }>> = {
   openrouter: [
     { id: 'openrouter/free',                                       label: 'Auto (best free model)',            free: true,  recommended: true },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free',               label: 'Llama 3.3 70B Instruct',            free: true,  recommended: true },
     { id: 'deepseek/deepseek-r1:free',                             label: 'DeepSeek R1 (reasoning)',           free: true  },
     { id: 'deepseek/deepseek-r1-0528:free',                       label: 'DeepSeek R1 0528',                  free: true  },
     { id: 'google/gemma-3-27b-it:free',                           label: 'Google Gemma 3 27B',                free: true  },

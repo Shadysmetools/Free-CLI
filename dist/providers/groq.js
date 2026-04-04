@@ -99,7 +99,7 @@ class GroqProvider {
                     continue;
                 }
                 if (is429) {
-                    throw new Error(`⏳ Rate limited. Wait ~30s or switch: /model openrouter:meta-llama/llama-3.3-70b-instruct:free`);
+                    throw new Error(`⏳ Rate limited. Wait ~30s or switch: /model openrouter:openrouter/free`);
                 }
                 throw err;
             }

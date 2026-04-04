@@ -22,7 +22,7 @@ function createProvider(providerName, settings) {
         case 'google':
             return new google_1.GoogleProvider(cfg.model || 'gemini-2.5-flash', cfg.apiKey);
         case 'openrouter':
-            return new openrouter_1.OpenRouterProvider(cfg.model || 'meta-llama/llama-3.3-70b-instruct:free', cfg.apiKey, cfg.baseUrl);
+            return new openrouter_1.OpenRouterProvider(cfg.model || 'openrouter/free', cfg.apiKey, cfg.baseUrl);
         default:
             throw new Error(`Unknown provider: ${providerName}`);
     }
@@ -45,7 +45,6 @@ exports.PROVIDER_INFO = {
 exports.PROVIDER_MODELS = {
     openrouter: [
         { id: 'openrouter/free', label: 'Auto (best free model)', free: true, recommended: true },
-        { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Instruct', free: true, recommended: true },
         { id: 'deepseek/deepseek-r1:free', label: 'DeepSeek R1 (reasoning)', free: true },
         { id: 'deepseek/deepseek-r1-0528:free', label: 'DeepSeek R1 0528', free: true },
         { id: 'google/gemma-3-27b-it:free', label: 'Google Gemma 3 27B', free: true },

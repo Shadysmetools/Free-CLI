@@ -7,7 +7,7 @@ export class OpenRouterProvider implements Provider {
   private inner: OpenAIProvider;
 
   constructor(
-    public model: string = 'meta-llama/llama-3.3-70b-instruct:free',
+    public model: string = 'openrouter/free',
     private apiKey?: string,
     baseUrl?: string
   ) {

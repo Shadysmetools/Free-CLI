@@ -56,7 +56,7 @@ const PRICING: Record<string, ModelPricing> = {
   'openai/o1-mini': { input: 1.10, output: 4.40 },
 
   // OpenRouter (free models)
-  'openrouter/meta-llama/llama-3.3-70b-instruct:free': { input: 0, output: 0 },
+  'openrouter/free': { input: 0, output: 0 },
   'openrouter/google/gemma-3-27b-it:free': { input: 0, output: 0 },
   'openrouter/mistralai/mistral-small-3.1-24b-instruct:free': { input: 0, output: 0 },
 };

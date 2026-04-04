@@ -37,7 +37,7 @@ exports.OpenRouterProvider = void 0;
 const openai_1 = require("./openai");
 const https = __importStar(require("https"));
 class OpenRouterProvider {
-    constructor(model = 'meta-llama/llama-3.3-70b-instruct:free', apiKey, baseUrl) {
+    constructor(model = 'openrouter/free', apiKey, baseUrl) {
         this.model = model;
         this.apiKey = apiKey;
         this.name = 'openrouter';

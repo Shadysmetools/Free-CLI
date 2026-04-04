@@ -19,21 +19,21 @@ const openrouter_1 = require("./openrouter");
 exports.FREE_FALLBACK_CHAIN = [
     {
         provider: 'openrouter',
-        model: 'meta-llama/llama-3.3-70b-instruct:free',
-        label: 'OpenRouter (Llama 3.3 free)',
-        createProvider: () => new openrouter_1.OpenRouterProvider('meta-llama/llama-3.3-70b-instruct:free'),
+        model: 'openrouter/free',
+        label: 'OpenRouter (Auto-pick best free)',
+        createProvider: () => new openrouter_1.OpenRouterProvider('openrouter/free'),
     },
     {
         provider: 'openrouter',
-        model: 'google/gemma-3-27b-it:free',
-        label: 'OpenRouter (Gemma 3 free)',
-        createProvider: () => new openrouter_1.OpenRouterProvider('google/gemma-3-27b-it:free'),
+        model: 'qwen/qwen3.6-plus:free',
+        label: 'OpenRouter (Qwen 3.6 Plus free)',
+        createProvider: () => new openrouter_1.OpenRouterProvider('qwen/qwen3.6-plus:free'),
     },
     {
         provider: 'openrouter',
-        model: 'mistralai/mistral-small-3.1-24b-instruct:free',
-        label: 'OpenRouter (Mistral free)',
-        createProvider: () => new openrouter_1.OpenRouterProvider('mistralai/mistral-small-3.1-24b-instruct:free'),
+        model: 'nvidia/nemotron-3-super-120b-a12b:free',
+        label: 'OpenRouter (NVIDIA Nemotron free)',
+        createProvider: () => new openrouter_1.OpenRouterProvider('nvidia/nemotron-3-super-120b-a12b:free'),
     },
     {
         provider: 'groq',
@@ -147,8 +147,8 @@ async function checkAllProviders() {
         {
             id: 'openrouter',
             label: 'OpenRouter',
-            model: 'meta-llama/llama-3.3-70b-instruct:free',
-            provider: new openrouter_1.OpenRouterProvider('meta-llama/llama-3.3-70b-instruct:free'),
+            model: 'openrouter/free',
+            provider: new openrouter_1.OpenRouterProvider('openrouter/free'),
             envVar: 'OPENROUTER_API_KEY',
         },
         {

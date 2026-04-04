@@ -25,21 +25,21 @@ export interface FallbackEntry {
 export const FREE_FALLBACK_CHAIN: FallbackEntry[] = [
   {
     provider: 'openrouter',
-    model: 'meta-llama/llama-3.3-70b-instruct:free',
-    label: 'OpenRouter (Llama 3.3 free)',
-    createProvider: () => new OpenRouterProvider('meta-llama/llama-3.3-70b-instruct:free'),
+    model: 'openrouter/free',
+    label: 'OpenRouter (Auto-pick best free)',
+    createProvider: () => new OpenRouterProvider('openrouter/free'),
   },
   {
     provider: 'openrouter',
-    model: 'google/gemma-3-27b-it:free',
-    label: 'OpenRouter (Gemma 3 free)',
-    createProvider: () => new OpenRouterProvider('google/gemma-3-27b-it:free'),
+    model: 'qwen/qwen3.6-plus:free',
+    label: 'OpenRouter (Qwen 3.6 Plus free)',
+    createProvider: () => new OpenRouterProvider('qwen/qwen3.6-plus:free'),
   },
   {
     provider: 'openrouter',
-    model: 'mistralai/mistral-small-3.1-24b-instruct:free',
-    label: 'OpenRouter (Mistral free)',
-    createProvider: () => new OpenRouterProvider('mistralai/mistral-small-3.1-24b-instruct:free'),
+    model: 'nvidia/nemotron-3-super-120b-a12b:free',
+    label: 'OpenRouter (NVIDIA Nemotron free)',
+    createProvider: () => new OpenRouterProvider('nvidia/nemotron-3-super-120b-a12b:free'),
   },
   {
     provider: 'groq',
@@ -182,8 +182,8 @@ export async function checkAllProviders(): Promise<ProviderStatus[]> {
     {
       id: 'openrouter',
       label: 'OpenRouter',
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
-      provider: new OpenRouterProvider('meta-llama/llama-3.3-70b-instruct:free'),
+      model: 'openrouter/free',
+      provider: new OpenRouterProvider('openrouter/free'),
       envVar: 'OPENROUTER_API_KEY',
     },
     {
