@@ -1,13 +1,7 @@
 "use strict";
 /**
- * First-run setup wizard for knowcap-code
- *
- * Behavior:
- *   1. Auto-detect what's available (Ollama, env vars, saved config)
- *   2. If something works → start immediately, zero config
- *   3. If nothing works → show interactive guided setup, save result
- *
- * Re-run: `kcc setup` or `kcc --setup`
+ * First-run setup wizard — Gemini CLI-style interactive selection
+ * Uses inquirer arrow-key prompts instead of numbered text menus.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -52,11 +46,12 @@ exports.silentAutoDetect = silentAutoDetect;
 exports.runSetupWizard = runSetupWizard;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const readline = __importStar(require("readline"));
 const http = __importStar(require("http"));
 const os = __importStar(require("os"));
 const chalk_1 = __importDefault(require("chalk"));
 const settings_1 = require("../config/settings");
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+const inquirer = require('inquirer');
 const CONFIG_DIR = process.platform === 'win32'
     ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
     : path.join(os.homedir(), '.knowcap-code');
@@ -83,86 +78,45 @@ async function detectOllama(baseUrl = 'http://localhost:11434') {
 }
 async function detectProviders() {
     const results = [];
-    // Ollama
     const ollama = await detectOllama();
     const ollamaModel = ollama.models.find(m => m.includes('qwen') || m.includes('llama') || m.includes('coder')) ?? ollama.models[0];
     results.push({
-        id: 'ollama',
-        label: 'Ollama (local, free)',
-        available: ollama.available,
-        free: true,
+        id: 'ollama', label: 'Ollama (local, free)', available: ollama.available, free: true,
         model: ollamaModel,
         reason: ollama.available
             ? (ollamaModel ? `${ollamaModel} ready` : 'running but no models installed')
             : 'not running on localhost:11434',
     });
-    // Groq
     const groqKey = process.env.GROQ_API_KEY;
-    results.push({
-        id: 'groq',
-        label: 'Groq (free cloud, fast)',
-        available: !!groqKey,
-        free: true,
-        model: 'llama-3.3-70b-versatile',
-        reason: groqKey ? 'GROQ_API_KEY found' : 'no GROQ_API_KEY set',
-    });
-    // Google
+    results.push({ id: 'groq', label: 'Groq (free cloud, fast)', available: !!groqKey, free: true,
+        model: 'llama-3.3-70b-versatile', reason: groqKey ? 'GROQ_API_KEY found' : 'no GROQ_API_KEY' });
     const googleKey = process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
-    results.push({
-        id: 'google',
-        label: 'Google Gemini (free tier)',
-        available: !!googleKey,
-        free: true,
-        model: 'gemini-2.5-flash',
-        reason: googleKey ? 'GOOGLE_API_KEY found' : 'no GOOGLE_API_KEY set',
-    });
-    // Anthropic
+    results.push({ id: 'google', label: 'Google Gemini (free tier)', available: !!googleKey, free: true,
+        model: 'gemini-2.5-flash', reason: googleKey ? 'GOOGLE_API_KEY found' : 'no GOOGLE_API_KEY' });
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    results.push({
-        id: 'anthropic',
-        label: 'Anthropic Claude (BYOK)',
-        available: !!anthropicKey,
-        free: false,
-        model: 'claude-3-5-haiku-20241022',
-        reason: anthropicKey ? 'ANTHROPIC_API_KEY found' : 'no ANTHROPIC_API_KEY set',
-    });
-    // OpenAI
+    results.push({ id: 'anthropic', label: 'Anthropic Claude (BYOK)', available: !!anthropicKey, free: false,
+        model: 'claude-3-5-haiku-20241022', reason: anthropicKey ? 'ANTHROPIC_API_KEY found' : 'no ANTHROPIC_API_KEY' });
     const openaiKey = process.env.OPENAI_API_KEY;
-    results.push({
-        id: 'openai',
-        label: 'OpenAI GPT (BYOK)',
-        available: !!openaiKey,
-        free: false,
-        model: 'gpt-4o-mini',
-        reason: openaiKey ? 'OPENAI_API_KEY found' : 'no OPENAI_API_KEY set',
-    });
+    results.push({ id: 'openai', label: 'OpenAI GPT (BYOK)', available: !!openaiKey, free: false,
+        model: 'gpt-4o-mini', reason: openaiKey ? 'OPENAI_API_KEY found' : 'no OPENAI_API_KEY' });
     return results;
 }
 // ─── Public API ───────────────────────────────────────────────────────────────
-/**
- * Returns true if setup has been completed and a provider is configured.
- */
 function isSetupComplete() {
     if (!fs.existsSync(SETUP_DONE_FILE))
         return false;
     const settings = (0, settings_1.loadSettings)();
-    // Check if at least one provider can work
     const prov = settings.defaultProvider;
     if (prov === 'ollama')
-        return true; // Always attempt ollama
+        return true;
     const apiKey = settings.providers[prov]?.apiKey;
     return !!apiKey;
 }
-/**
- * Auto-detect: pick the best available provider without asking anything.
- * Returns the provider id to use, or null if nothing works.
- */
 async function autoDetectProvider() {
     const detected = await detectProviders();
     const working = detected.filter(d => d.available && d.model);
     if (working.length === 0)
         return null;
-    // Priority: ollama (local free) > groq (fast free) > google > anthropic > openai
     const priority = ['ollama', 'groq', 'google', 'anthropic', 'openai'];
     for (const id of priority) {
         const match = working.find(d => d.id === id);
@@ -171,18 +125,12 @@ async function autoDetectProvider() {
     }
     return null;
 }
-/**
- * Silent startup: auto-detect, print one info line, return chosen provider.
- * Called at every startup when setup is already complete.
- */
 async function silentAutoDetect() {
     const settings = (0, settings_1.loadSettings)();
     const prov = settings.defaultProvider;
-    // If non-ollama provider is configured with a key, use it silently
     if (prov !== 'ollama' && settings.providers[prov]?.apiKey) {
         return { provider: prov, model: settings.providers[prov].model ?? '' };
     }
-    // Try Ollama
     const ollama = await detectOllama(settings.providers.ollama?.baseUrl ?? 'http://localhost:11434');
     if (ollama.available && ollama.models.length > 0) {
         const preferredModel = settings.providers.ollama?.model ?? '';
@@ -191,9 +139,7 @@ async function silentAutoDetect() {
     }
     return null;
 }
-/**
- * Run the interactive first-run setup wizard.
- */
+// ─── Setup Wizard ─────────────────────────────────────────────────────────────
 async function runSetupWizard(force = false) {
     if (!force && isSetupComplete())
         return;
@@ -206,44 +152,129 @@ ${chalk_1.default.cyan('└─────────────────�
     console.log(chalk_1.default.bold('🔍 Detecting AI providers...\n'));
     const detected = await detectProviders();
     for (const p of detected) {
-        const icon = p.available ? chalk_1.default.green('  ✅') : chalk_1.default.red('  ❌');
+        const icon = p.available ? chalk_1.default.green('  ✅') : chalk_1.default.dim('  ○ ');
         const label = p.available ? chalk_1.default.green(p.label) : chalk_1.default.dim(p.label);
         const reason = chalk_1.default.dim(` — ${p.reason}`);
         console.log(`${icon} ${label}${reason}`);
     }
     console.log();
     const working = detected.filter(d => d.available && d.model);
-    // ── Something works → use it immediately ─────────────────────────────────
+    // ── Something works → offer to use it or pick another ────────────────────
     if (working.length > 0) {
         const best = pickBest(working);
-        console.log(chalk_1.default.green(`✅ Ready to go! Using ${chalk_1.default.bold(best.label)} (${best.model})`));
-        console.log(chalk_1.default.dim('   Type your first message or /help for commands.\n'));
+        const choices = [
+            {
+                name: `${chalk_1.default.green('✅')} Use ${chalk_1.default.bold(best.label)} ${chalk_1.default.dim(`(${best.model})`)} — ready now`,
+                value: 'use-best',
+            },
+            ...working.filter(p => p.id !== best.id).map(p => ({
+                name: `   Use ${p.label} ${chalk_1.default.dim(`(${p.model})`)}`,
+                value: `use-${p.id}`,
+            })),
+            { name: chalk_1.default.dim('   Choose a different provider (requires API key)'), value: 'choose' },
+        ];
+        const { startChoice } = await inquirer.prompt([{
+                type: 'list',
+                name: 'startChoice',
+                message: 'How would you like to start?',
+                choices,
+            }]);
+        if (startChoice === 'use-best' || startChoice.startsWith('use-')) {
+            const chosenId = startChoice === 'use-best' ? best.id : startChoice.replace('use-', '');
+            const chosen = working.find(p => p.id === chosenId) ?? best;
+            const settings = (0, settings_1.loadSettings)();
+            settings.defaultProvider = chosen.id;
+            if (chosen.model)
+                settings.providers[chosen.id] = { ...settings.providers[chosen.id], model: chosen.model };
+            (0, settings_1.saveSettings)(settings);
+            markSetupComplete();
+            console.log(chalk_1.default.green(`\n✅ Ready! Using ${chalk_1.default.bold(chosen.label)}\n`));
+            return;
+        }
+        // Fall through to "choose" flow
+    }
+    // ── Interactive provider picker ───────────────────────────────────────────
+    const providerChoices = [
+        {
+            name: `🆓 ${chalk_1.default.bold('OpenRouter')} — free cloud models (no API key needed for some)`,
+            value: 'openrouter',
+        },
+        {
+            name: `🆓 ${chalk_1.default.bold('Groq')} — ultra-fast free tier · llama-3.3-70b`,
+            value: 'groq',
+        },
+        {
+            name: `🆓 ${chalk_1.default.bold('Google Gemini')} — free tier · gemini-2.5-flash`,
+            value: 'google',
+        },
+        {
+            name: `🖥️  ${chalk_1.default.bold('Ollama')} — local models, zero cost, zero API key`,
+            value: 'ollama',
+        },
+        {
+            name: `💰 ${chalk_1.default.bold('Anthropic Claude')} — BYOK (claude-3-5-haiku)`,
+            value: 'anthropic',
+        },
+        {
+            name: `💰 ${chalk_1.default.bold('OpenAI GPT')} — BYOK (gpt-4o-mini)`,
+            value: 'openai',
+        },
+        new inquirer.Separator(),
+        { name: chalk_1.default.dim('Skip — I\'ll configure later'), value: 'skip' },
+    ];
+    const { selectedProvider } = await inquirer.prompt([{
+            type: 'list',
+            name: 'selectedProvider',
+            message: 'Select your AI provider:',
+            choices: providerChoices,
+        }]);
+    if (selectedProvider === 'skip') {
+        markSetupComplete();
+        console.log(chalk_1.default.dim('\n  Run "kcc setup" to configure anytime.\n'));
+        return;
+    }
+    if (selectedProvider === 'ollama') {
         const settings = (0, settings_1.loadSettings)();
-        settings.defaultProvider = best.id;
-        if (best.model)
-            settings.providers[best.id] = { ...settings.providers[best.id], model: best.model };
+        settings.defaultProvider = 'ollama';
+        settings.providers.ollama = { ...settings.providers.ollama, model: 'qwen2.5-coder:7b' };
         (0, settings_1.saveSettings)(settings);
+        markSetupComplete();
+        console.log(chalk_1.default.green('\n✅ Ollama selected.'));
+        console.log(chalk_1.default.dim('  Make sure Ollama is running: ollama pull qwen2.5-coder:7b && ollama serve\n'));
+        return;
+    }
+    // API key required
+    const keyLabels = {
+        openrouter: { var: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/keys', model: 'openrouter/free', hint: 'sk-or-v1-...' },
+        groq: { var: 'GROQ_API_KEY', url: 'https://console.groq.com', model: 'llama-3.3-70b-versatile', hint: 'gsk_...' },
+        google: { var: 'GOOGLE_API_KEY', url: 'https://aistudio.google.com', model: 'gemini-2.5-flash', hint: 'AIza...' },
+        anthropic: { var: 'ANTHROPIC_API_KEY', url: 'https://console.anthropic.com', model: 'claude-3-5-haiku-20241022', hint: 'sk-ant-...' },
+        openai: { var: 'OPENAI_API_KEY', url: 'https://platform.openai.com', model: 'gpt-4o-mini', hint: 'sk-...' },
+    };
+    const info = keyLabels[selectedProvider];
+    if (!info) {
         markSetupComplete();
         return;
     }
-    // ── Nothing works → guided setup ─────────────────────────────────────────
-    console.log(chalk_1.default.yellow('⚠  No AI providers detected. Let\'s set one up!\n'));
-    const choice = await showProviderMenu();
-    if (choice) {
-        const settings = (0, settings_1.loadSettings)();
-        settings.defaultProvider = choice.id;
-        if (choice.apiKey) {
-            settings.providers[choice.id] = settings.providers[choice.id] ?? {};
-            settings.providers[choice.id].apiKey = choice.apiKey;
-        }
-        if (choice.model) {
-            settings.providers[choice.id] = settings.providers[choice.id] ?? {};
-            settings.providers[choice.id].model = choice.model;
-        }
-        (0, settings_1.saveSettings)(settings);
-        markSetupComplete();
-        console.log(chalk_1.default.green(`\n✅ Saved! Using ${choice.id}. Run 'kcc' to start.\n`));
-    }
+    console.log(chalk_1.default.dim(`\n  Get your API key at: ${chalk_1.default.cyan(info.url)}\n`));
+    const { apiKey } = await inquirer.prompt([{
+            type: 'password',
+            name: 'apiKey',
+            message: `Enter your ${info.var}:`,
+            mask: '•',
+            validate: (v) => v.trim().length > 10 ? true : 'Key seems too short — please check it.',
+        }]);
+    const settings = (0, settings_1.loadSettings)();
+    settings.defaultProvider = selectedProvider;
+    settings.providers[selectedProvider] = {
+        ...settings.providers[selectedProvider],
+        apiKey: apiKey.trim(),
+        model: info.model,
+    };
+    (0, settings_1.saveSettings)(settings);
+    markSetupComplete();
+    console.log(chalk_1.default.green(`\n✅ Saved! Using ${selectedProvider}/${info.model}\n`));
+    console.log(chalk_1.default.dim(`  Tip: Also set ${info.var} in your shell profile for permanent use.\n`));
 }
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function pickBest(providers) {
@@ -259,70 +290,5 @@ function markSetupComplete() {
     if (!fs.existsSync(CONFIG_DIR))
         fs.mkdirSync(CONFIG_DIR, { recursive: true });
     fs.writeFileSync(SETUP_DONE_FILE, new Date().toISOString(), 'utf-8');
-}
-async function showProviderMenu() {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const ask = (q) => new Promise(resolve => rl.question(q, resolve));
-    try {
-        console.log(chalk_1.default.bold('📋 Quick Setup — choose a provider:\n'));
-        console.log(`  ${chalk_1.default.cyan('1.')} 🆓 ${chalk_1.default.bold('Ollama')} — local, free, private`);
-        console.log(`     ${chalk_1.default.dim('→ Install: curl -fsSL https://ollama.com/install.sh | sh')}`);
-        console.log(`     ${chalk_1.default.dim('→ Then: ollama pull qwen2.5-coder:7b')}\n`);
-        console.log(`  ${chalk_1.default.cyan('2.')} 🆓 ${chalk_1.default.bold('Groq')} — free cloud, ultra-fast`);
-        console.log(`     ${chalk_1.default.dim('→ Get free key: https://console.groq.com')}\n`);
-        console.log(`  ${chalk_1.default.cyan('3.')} 🆓 ${chalk_1.default.bold('Google Gemini')} — free tier`);
-        console.log(`     ${chalk_1.default.dim('→ Get free key: https://aistudio.google.com')}\n`);
-        console.log(`  ${chalk_1.default.cyan('4.')} 💰 ${chalk_1.default.bold('Anthropic Claude')} — BYOK`);
-        console.log(`     ${chalk_1.default.dim('→ https://console.anthropic.com')}\n`);
-        console.log(`  ${chalk_1.default.cyan('5.')} 💰 ${chalk_1.default.bold('OpenAI GPT')} — BYOK`);
-        console.log(`     ${chalk_1.default.dim('→ https://platform.openai.com')}\n`);
-        console.log(`  ${chalk_1.default.cyan('6.')} ⏭  ${chalk_1.default.bold('Skip')} — I\'ll configure later\n`);
-        const answer = (await ask(chalk_1.default.cyan('  Choice [1]: '))).trim() || '1';
-        switch (answer) {
-            case '1':
-                console.log(chalk_1.default.dim('\n  Install Ollama first, then re-run kcc.'));
-                console.log(chalk_1.default.dim('  Quick start: ollama pull qwen2.5-coder:7b && kcc'));
-                return { id: 'ollama', model: 'qwen2.5-coder:7b' };
-            case '2': {
-                const key = (await ask(chalk_1.default.cyan('  Groq API key: '))).trim();
-                if (!key) {
-                    console.log(chalk_1.default.red('  No key entered.'));
-                    return null;
-                }
-                return { id: 'groq', model: 'llama-3.3-70b-versatile', apiKey: key };
-            }
-            case '3': {
-                const key = (await ask(chalk_1.default.cyan('  Google API key: '))).trim();
-                if (!key) {
-                    console.log(chalk_1.default.red('  No key entered.'));
-                    return null;
-                }
-                return { id: 'google', model: 'gemini-2.5-flash', apiKey: key };
-            }
-            case '4': {
-                const key = (await ask(chalk_1.default.cyan('  Anthropic API key (sk-ant-...): '))).trim();
-                if (!key) {
-                    console.log(chalk_1.default.red('  No key entered.'));
-                    return null;
-                }
-                return { id: 'anthropic', model: 'claude-3-5-haiku-20241022', apiKey: key };
-            }
-            case '5': {
-                const key = (await ask(chalk_1.default.cyan('  OpenAI API key (sk-...): '))).trim();
-                if (!key) {
-                    console.log(chalk_1.default.red('  No key entered.'));
-                    return null;
-                }
-                return { id: 'openai', model: 'gpt-4o-mini', apiKey: key };
-            }
-            default:
-                console.log(chalk_1.default.dim('\n  Skipped. Run "kcc setup" to configure later.'));
-                markSetupComplete();
-                return null;
-        }
-    }
-    finally {
-        rl.close();
-    }
 }
 //# sourceMappingURL=wizard.js.map

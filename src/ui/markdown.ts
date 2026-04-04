@@ -1,47 +1,110 @@
-import { marked } from 'marked';
 import chalk from 'chalk';
 
 const c = chalk;
 
-// Simple terminal markdown renderer
+// ─── Code block syntax highlighter (no external package needed) ───────────────
+function highlightLine(line: string, lang: string): string {
+  if (!lang || lang === 'plaintext' || lang === 'text') return c.white(line);
+
+  let result = line;
+
+  // Comments — must come first so they aren't re-processed
+  const commentPatterns: RegExp[] = [];
+  if (['js', 'ts', 'javascript', 'typescript', 'go', 'java', 'c', 'cpp', 'cs', 'rust', 'swift'].includes(lang)) {
+    commentPatterns.push(/\/\/.*/);
+  }
+  if (['py', 'python', 'rb', 'ruby', 'sh', 'bash', 'yaml', 'toml'].includes(lang)) {
+    commentPatterns.push(/#.*/);
+  }
+  if (['html', 'xml'].includes(lang)) {
+    commentPatterns.push(/<!--.*?-->/);
+  }
+
+  // Replace comments with placeholder, restore after other replacements
+  const commentPlaceholders: string[] = [];
+  for (const pat of commentPatterns) {
+    result = result.replace(pat, (m) => {
+      const idx = commentPlaceholders.length;
+      commentPlaceholders.push(c.dim(m));
+      return `\x00COMMENT${idx}\x00`;
+    });
+  }
+
+  // Strings
+  result = result.replace(/(["'`])((?:\\.|[^\\])*?)\1/g, (_, q, s) => c.green(`${q}${s}${q}`));
+
+  // JS/TS/Python/Go keywords
+  const kwColors: Record<string, RegExp> = {
+    blue: /\b(const|let|var|function|class|import|export|from|return|if|else|for|while|do|switch|case|break|continue|new|typeof|instanceof|async|await|try|catch|finally|throw|in|of|default|extends|implements|interface|type|enum|namespace|module|declare|abstract|public|private|protected|static|readonly|override|def|pass|yield|lambda|with|as|assert|del|raise|except|elif|global|nonlocal|and|or|not|is|None|True|False|func|package|import|var|go|chan|select|defer|goroutine|struct|map|range|nil|true|false|self|super|this)\b/,
+  };
+  for (const [color, pat] of Object.entries(kwColors)) {
+    result = result.replace(pat, m => (c as unknown as Record<string, (s: string) => string>)[color]?.(m) ?? m);
+  }
+
+  // Numbers
+  result = result.replace(/\b(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, m => c.yellow(m));
+
+  // Restore comments
+  for (let i = 0; i < commentPlaceholders.length; i++) {
+    result = result.replace(`\x00COMMENT${i}\x00`, commentPlaceholders[i]);
+  }
+
+  return result;
+}
+
+// ─── Render markdown to terminal ──────────────────────────────────────────────
 export function renderMarkdown(text: string): string {
-  // Code blocks
-  text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
+  // ── Code blocks — bordered box ────────────────────────────────────────────
+  text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang: string, code: string) => {
     const trimmed = code.trimEnd();
-    const lines = trimmed.split('\n').map((line: string) => `  ${c.white(line)}`).join('\n');
-    const header = lang ? `  ${c.dim(`─── ${lang} ───`)}` : `  ${c.dim('─────────')}`;
-    return `\n${header}\n${lines}\n  ${c.dim('─────────')}\n`;
+    const rawLines = trimmed.split('\n');
+    const visibleWidth = rawLines.reduce((max, l) => Math.max(max, l.length), 0);
+    const boxWidth = Math.min(Math.max(visibleWidth + 2, 20), 90);
+    const langLabel = lang ? ` ${lang} ` : '';
+    const topFill = '─'.repeat(Math.max(0, boxWidth - langLabel.length - 2));
+    const top = `  ${c.dim('┌─')}${langLabel ? c.dim.italic(langLabel) : ''}${c.dim(topFill + '─┐')}`;
+    const bottom = `  ${c.dim('└' + '─'.repeat(boxWidth) + '┘')}`;
+
+    const contentLines = rawLines.map(rawLine => {
+      const hl = highlightLine(rawLine, lang ?? '');
+      const pad = Math.max(0, boxWidth - rawLine.length - 1);
+      return `  ${c.dim('│')} ${hl}${' '.repeat(pad)}${c.dim('│')}`;
+    });
+
+    return '\n' + [top, ...contentLines, bottom].join('\n') + '\n';
   });
 
-  // Inline code
-  text = text.replace(/`([^`]+)`/g, (_, code) => c.bgBlack.white(` ${code} `));
+  // ── Inline code ───────────────────────────────────────────────────────────
+  text = text.replace(/`([^`]+)`/g, (_, code: string) => c.bgBlack.white(` ${code} `));
 
-  // Bold
-  text = text.replace(/\*\*(.+?)\*\*/g, (_, t) => c.bold(t));
+  // ── Bold ──────────────────────────────────────────────────────────────────
+  text = text.replace(/\*\*(.+?)\*\*/g, (_, t: string) => c.bold(t));
 
-  // Italic
-  text = text.replace(/\*(.+?)\*/g, (_, t) => c.italic(t));
+  // ── Italic ────────────────────────────────────────────────────────────────
+  text = text.replace(/\*(.+?)\*/g, (_, t: string) => c.italic(t));
 
-  // Headers
-  text = text.replace(/^### (.+)$/gm, (_, t) => c.bold.cyan(t));
-  text = text.replace(/^## (.+)$/gm, (_, t) => c.bold.cyan('▌ ' + t));
-  text = text.replace(/^# (.+)$/gm, (_, t) => c.bold.cyan('▌▌ ' + t));
+  // ── Headers ───────────────────────────────────────────────────────────────
+  text = text.replace(/^### (.+)$/gm, (_, t: string) => c.bold.cyan(t));
+  text = text.replace(/^## (.+)$/gm, (_, t: string) => c.bold.cyan('▌ ' + t));
+  text = text.replace(/^# (.+)$/gm, (_, t: string) => c.bold.cyan('▌▌ ' + t));
 
-  // Bullet points
-  text = text.replace(/^- (.+)$/gm, (_, t) => `  ${c.cyan('•')} ${t}`);
-  text = text.replace(/^\* (.+)$/gm, (_, t) => `  ${c.cyan('•')} ${t}`);
+  // ── Bullet points ─────────────────────────────────────────────────────────
+  text = text.replace(/^- (.+)$/gm, (_, t: string) => `  ${c.cyan('•')} ${t}`);
+  text = text.replace(/^\* (.+)$/gm, (_, t: string) => `  ${c.cyan('•')} ${t}`);
 
-  // Numbered lists
-  text = text.replace(/^(\d+)\. (.+)$/gm, (_, n, t) => `  ${c.cyan(n + '.')} ${t}`);
+  // ── Numbered lists ────────────────────────────────────────────────────────
+  text = text.replace(/^(\d+)\. (.+)$/gm, (_, n: string, t: string) => `  ${c.cyan(n + '.')} ${t}`);
 
-  // Blockquotes
-  text = text.replace(/^> (.+)$/gm, (_, t) => `  ${c.dim('│')} ${c.dim(t)}`);
+  // ── Blockquotes ───────────────────────────────────────────────────────────
+  text = text.replace(/^> (.+)$/gm, (_, t: string) => `  ${c.dim('│')} ${c.dim(t)}`);
+
+  // ── Horizontal rules ──────────────────────────────────────────────────────
+  text = text.replace(/^---+$/gm, c.dim('─'.repeat(50)));
 
   return text;
 }
 
 export function renderMarkdownCompact(text: string): string {
-  // Strip most formatting for compact display
   text = text.replace(/```[\s\S]*?```/g, (match) => {
     const lines = match.split('\n').slice(1, -1);
     return lines.map((l: string) => `  ${l}`).join('\n');

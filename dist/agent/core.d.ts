@@ -19,6 +19,8 @@ export interface AgentOptions {
 }
 export interface AgentResult {
     content: string;
+    /** Formatted dim footer line — print AFTER the response content */
+    footerLine?: string;
     usage?: {
         prompt_tokens: number;
         completion_tokens: number;

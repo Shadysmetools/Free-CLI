@@ -1,20 +1,21 @@
 "use strict";
 /**
- * Terminal UI — improved display matching Claude Code quality
+ * Terminal UI — ChatGPT-clean output
  *
- * Color scheme:
- *   Blue/Cyan  = AI responses, prompts
- *   Green      = success, tool results
- *   Red        = errors
- *   Yellow     = warnings, tool calls
- *   Magenta    = file paths, memory
- *   Dim/Gray   = metadata, status lines
+ * Design principles:
+ *   • Show WHAT happened, not HOW (no raw JSON, no boxes for tool calls)
+ *   • Response appears inline with "AI  › " prefix (no blank line)
+ *   • Token stats as dim footer AFTER response
+ *   • Tool calls as compact one-liners
+ *   • Code blocks with line numbers + syntax highlighting
+ *   • Inquirer-powered interactive choices everywhere
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.colors = void 0;
+exports.colors = exports.verboseMode = void 0;
+exports.setVerboseMode = setVerboseMode;
 exports.printBanner = printBanner;
 exports.printHelp = printHelp;
 exports.printMessage = printMessage;
@@ -25,14 +26,61 @@ exports.printWarning = printWarning;
 exports.printToolCall = printToolCall;
 exports.printToolResult = printToolResult;
 exports.printResponseFooter = printResponseFooter;
+exports.printCodeBlock = printCodeBlock;
+exports.printPlanBox = printPlanBox;
+exports.printFileOp = printFileOp;
 exports.printStatus = printStatus;
 exports.printDivider = printDivider;
 exports.printSectionHeader = printSectionHeader;
 exports.printBox = printBox;
 exports.createSpinner = createSpinner;
 const chalk_1 = __importDefault(require("chalk"));
-// Chalk v4 CommonJS
 const c = chalk_1.default;
+// ─── Verbose flag ─────────────────────────────────────────────────────────────
+exports.verboseMode = false;
+function setVerboseMode(v) { exports.verboseMode = v; }
+// ─── Tool display helpers ─────────────────────────────────────────────────────
+const TOOL_EMOJIS = {
+    read_file: '📖',
+    write_file: '✏️ ',
+    edit_file: '✏️ ',
+    search_files: '🔍',
+    list_files: '📂',
+    run_command: '⚡',
+    git_status: '📊',
+    git_diff: '📊',
+    git_commit: '✅',
+    git_log: '📜',
+    generate_pdf: '📄',
+    generate_excel: '📊',
+    generate_diagram: '🎨',
+    generate_image: '🖼️ ',
+    memory_search: '🧠',
+    memory_save: '💾',
+};
+function extractMainArg(toolName, input) {
+    const candidates = [
+        input.path, input.command, input.pattern, input.query,
+        input.message, input.output_path, input.title, input.prompt,
+        input.url, input.note,
+    ];
+    for (const v of candidates) {
+        if (typeof v === 'string' && v.trim()) {
+            const trimmed = v.trim();
+            return trimmed.length > 55 ? trimmed.slice(0, 52) + '…' : trimmed;
+        }
+    }
+    // Fall back: first string value in input
+    for (const v of Object.values(input)) {
+        if (typeof v === 'string' && v.trim()) {
+            const trimmed = v.trim();
+            return trimmed.length > 55 ? trimmed.slice(0, 52) + '…' : trimmed;
+        }
+    }
+    return '';
+    void toolName;
+}
+// ─── Colors palette (kept for compatibility) ──────────────────────────────────
 exports.colors = {
     primary: (s) => c.cyan(s),
     secondary: (s) => c.gray(s),
@@ -74,6 +122,7 @@ ${c.bold('OPTIONS')}
   ${c.yellow('--model')} <name>       Set model name
   ${c.yellow('--cwd')} <path>         Set working directory
   ${c.yellow('--no-color')}           Disable colors
+  ${c.yellow('--verbose')}            Show full tool output
   ${c.yellow('-v, --version')}        Show version
 
 ${c.bold('SLASH COMMANDS')}
@@ -106,23 +155,12 @@ ${c.bold('SLASH COMMANDS')}
 
   ${c.bold.dim('── Tokens & Cost ────────────────────────────')}
   ${c.green('/cost')}                Session token usage + cost breakdown
-  ${c.green('/stats')}               Alias for /cost
   ${c.green('/tokens')}              Compact token summary
-  ${c.green('/budget')} <amount>     Set USD budget limit (e.g. /budget 1.00)
+  ${c.green('/budget')} <amount>     Set USD budget limit
 
   ${c.bold.dim('── Tools Registry ───────────────────────────')}
   ${c.green('/tools')}               List all tools by category
   ${c.green('/tools info')} <name>   Show tool details
-  ${c.green('/tools enable')} <name> Enable a disabled tool
-  ${c.green('/tools disable')} <name> Disable a tool
-
-  ${c.bold.dim('── OpenClaw Gateway ─────────────────────────')}
-  ${c.green('/openclaw status')}     Gateway health + overview
-  ${c.green('/openclaw agents')}     List configured agents
-  ${c.green('/openclaw sessions')}   Active sessions
-  ${c.green('/openclaw send')} <agent> <msg>  Send a message to an agent
-  ${c.green('/openclaw history')} <session>   View session history
-  ${c.green('/openclaw cron')}       List cron jobs
 
   ${c.bold.dim('── Providers & Models ───────────────────────')}
   ${c.green('/providers')}           Status of all providers (🟢/🔴)
@@ -130,28 +168,21 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/model')} <p>:<m>       Switch provider/model mid-session
 
   ${c.bold.dim('── Other ─────────────────────────────────────')}
+  ${c.green('/plan')} <task>         Generate execution plan
+  ${c.green('/persona')} [list/set]  Manage language persona
+  ${c.green('/history')}             Session history
   ${c.green('/transcribe')} <file>   Transcribe audio/video
-  ${c.green('/mcp')}                 List MCP servers + tools
   ${c.green('/config')}              Show configuration
 
 ${c.bold('FREE PROVIDERS')}
   ${c.yellow('ollama')}      Local models — zero cost, zero API key
   ${c.yellow('groq')}        Ultra-fast free tier — llama-3.3-70b, deepseek-r1
-  ${c.yellow('google')}      Gemini free tier — gemini-2.5-flash (2.0 deprecated)
+  ${c.yellow('google')}      Gemini free tier — gemini-2.5-flash
   ${c.yellow('openrouter')}  Many free models via openrouter.ai
 
 ${c.bold('BYOK PROVIDERS')}
   ${c.yellow('anthropic')}   Claude models (ANTHROPIC_API_KEY)
   ${c.yellow('openai')}      GPT models (OPENAI_API_KEY)
-
-${c.bold('EXAMPLES')}
-  ${c.dim('$')} knowcap-code
-  ${c.dim('›')} Create a REST API in Express.js
-  ${c.dim('›')} /review src/api.ts
-  ${c.dim('›')} /model groq:llama-3.3-70b-versatile
-  ${c.dim('›')} /memory save "Use pnpm for this project"
-  ${c.dim('›')} /skills
-  ${c.dim('›')} /cost
 `);
 }
 // ─── Messages ─────────────────────────────────────────────────────────────────
@@ -176,36 +207,148 @@ function printInfo(msg) {
 function printWarning(msg) {
     console.log(`${c.yellow('⚠')} ${c.yellow(msg)}`);
 }
-// ─── Tool Calls ───────────────────────────────────────────────────────────────
-function printToolCall(toolName, input) {
-    const shortInput = JSON.stringify(input);
-    const displayInput = shortInput.length > 100 ? shortInput.slice(0, 97) + '...' : shortInput;
-    console.log(`\n${c.yellow('┌─')} ${c.bold.yellow('⚙')} ${c.yellow(toolName)}`);
-    console.log(`${c.yellow('│')} ${c.dim(displayInput)}`);
-}
-function printToolResult(toolName, result) {
-    const lines = result.split('\n').slice(0, 8); // max 8 lines preview
-    const truncated = result.split('\n').length > 8;
-    for (const line of lines) {
-        const trimmed = line.length > 120 ? line.slice(0, 117) + '...' : line;
-        console.log(`${c.yellow('│')} ${c.dim(trimmed)}`);
-    }
-    if (truncated) {
-        console.log(`${c.yellow('│')} ${c.dim(`... (${result.split('\n').length} lines total)`)}`);
-    }
-    console.log(c.yellow('└─'));
-}
-// ─── Status / Footer ──────────────────────────────────────────────────────────
+// ─── Tool Calls — compact one-liners ─────────────────────────────────────────
 /**
- * Shown after every AI response.
- * Format: [provider/model · 1,234 in / 567 out · $0.00]
+ * Writes "  emoji tool_name → arg" WITHOUT trailing newline.
+ * printToolResult() will append the result info on the same line.
+ */
+function printToolCall(toolName, input) {
+    const emoji = TOOL_EMOJIS[toolName] ?? '⚙ ';
+    const mainArg = extractMainArg(toolName, input);
+    const argStr = mainArg ? ` → ${c.dim(mainArg)}` : '';
+    process.stdout.write(`\n  ${emoji} ${c.dim(toolName)}${argStr}`);
+}
+/**
+ * Appends " (N lines)" to the tool call line, or shows full output in verbose mode.
+ */
+function printToolResult(_toolName, result) {
+    const lines = result.split('\n');
+    const lineCount = lines.length;
+    if (exports.verboseMode) {
+        // Verbose: show full content in indented block
+        process.stdout.write('\n');
+        const preview = lines.slice(0, 40);
+        for (const line of preview) {
+            const trimmed = line.length > 120 ? line.slice(0, 117) + '…' : line;
+            console.log(`    ${c.dim(trimmed)}`);
+        }
+        if (lineCount > 40) {
+            console.log(c.dim(`    … (${lineCount} lines total)`));
+        }
+    }
+    else {
+        // Compact: just append line count
+        const info = lineCount > 1 ? ` ${c.dim(`(${lineCount} lines)`)}` : '';
+        process.stdout.write(info + '\n');
+    }
+}
+// ─── Response Footer — dim, after response ────────────────────────────────────
+/**
+ * Format: "  model · 1,234 tokens · free"  (dim, shown after AI response)
  */
 function printResponseFooter(provider, model, tokenLine) {
-    console.log(`\n${c.dim(`[${provider}/${model} · ${tokenLine}]`)}`);
+    // tokenLine format from formatResponseLine: "provider/model · N in / M out · cost"
+    const parts = tokenLine.split(' · ');
+    const costPart = (parts[2] ?? 'free').trim();
+    // Extract token count
+    const tokenMatch = tokenLine.match(/(\d[\d,]*) in \/ (\d[\d,]*) out/);
+    let tokenStr = '';
+    if (tokenMatch) {
+        const totalToks = parseInt(tokenMatch[1].replace(/,/g, '')) +
+            parseInt(tokenMatch[2].replace(/,/g, ''));
+        tokenStr = `${totalToks.toLocaleString()} tokens`;
+    }
+    // Short model name (strip prefix like "openrouter/", "qwen/", etc.)
+    const modelShort = model.split('/').pop() ?? model;
+    const tag = [modelShort, tokenStr, costPart].filter(Boolean).join(' · ');
+    console.log(c.dim(`\n  ${tag}`));
+    void provider;
 }
+// ─── Code Block — line numbers + syntax highlighting ─────────────────────────
 /**
- * Legacy status for one-shot mode
+ * Renders a file/code block with line numbers and (optional) syntax highlighting.
+ * Used for verbose file reads and explicit code display.
  */
+function printCodeBlock(code, lang, filename) {
+    const rawLines = code.split('\n');
+    // Remove trailing empty line from split
+    if (rawLines[rawLines.length - 1] === '')
+        rawLines.pop();
+    // Try syntax highlighting with cli-highlight
+    let highlighted;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+        const { highlight } = require('cli-highlight');
+        const result = highlight(code, { language: lang ?? 'plaintext', ignoreIllegals: true });
+        highlighted = result.split('\n');
+        if (highlighted[highlighted.length - 1] === '')
+            highlighted.pop();
+    }
+    catch {
+        highlighted = rawLines.map(l => c.white(l));
+    }
+    const lineNumWidth = String(rawLines.length).length;
+    // Find max visible line length (strip ANSI codes for width calc)
+    const visibleLen = rawLines.reduce((max, l) => Math.max(max, l.length), 0);
+    const innerWidth = Math.min(Math.max(visibleLen, 40), 96);
+    const boxInner = lineNumWidth + 2 + innerWidth + 1; // num + │ + content + space
+    // Header
+    if (filename) {
+        console.log(`\n  ${c.dim('📄')} ${c.cyan.bold(filename)}`);
+    }
+    else if (lang) {
+        console.log(`\n  ${c.dim(lang)}`);
+    }
+    else {
+        console.log();
+    }
+    // Top border
+    console.log(`  ${c.dim('┌' + '─'.repeat(lineNumWidth + 2) + '┬' + '─'.repeat(innerWidth + 2) + '┐')}`);
+    for (let i = 0; i < rawLines.length; i++) {
+        const num = String(i + 1).padStart(lineNumWidth);
+        const hlLine = highlighted[i] ?? '';
+        const rawLine = rawLines[i];
+        // Pad the raw line for consistent box width
+        const padding = Math.max(0, innerWidth - rawLine.length);
+        console.log(`  ${c.dim('│')} ${c.dim(num)} ${c.dim('│')} ${hlLine}${' '.repeat(padding)} ${c.dim('│')}`);
+    }
+    // Bottom border
+    console.log(`  ${c.dim('└' + '─'.repeat(lineNumWidth + 2) + '┴' + '─'.repeat(innerWidth + 2) + '┘')}`);
+}
+function printPlanBox(title, steps, summary) {
+    const width = 57;
+    const bar = '─'.repeat(width);
+    const padEnd = (s, len) => {
+        // Strip ANSI for length
+        const visible = s.replace(/\x1B\[[0-9;]*m/g, '');
+        return s + ' '.repeat(Math.max(0, len - visible.length));
+    };
+    console.log(`\n  ${c.cyan('┌' + bar + '┐')}`);
+    // Title row
+    const titleStr = `  📋 ${title}`;
+    console.log(`  ${c.cyan('│')}${padEnd(c.bold.cyan(titleStr), width + 11)}  ${c.cyan('│')}`);
+    console.log(`  ${c.cyan('├' + bar + '┤')}`);
+    for (const step of steps) {
+        const estStr = step.estMin ? c.dim(` [${step.estMin}m]`) : '';
+        const targetStr = step.target ? c.dim(` → ${step.target.slice(0, 20)}`) : '';
+        const desc = step.description.length > 35 ? step.description.slice(0, 32) + '…' : step.description;
+        const row = `  ${step.num}. ${step.icon} ${c.white(desc)}${targetStr}${estStr}`;
+        console.log(`  ${c.cyan('│')}${padEnd('  ' + row, width + 4)}  ${c.cyan('│')}`);
+    }
+    if (summary) {
+        console.log(`  ${c.cyan('├' + bar + '┤')}`);
+        const summaryRow = `  ${summary}`;
+        console.log(`  ${c.cyan('│')}${padEnd(c.dim('  ' + summaryRow), width + 8)}  ${c.cyan('│')}`);
+    }
+    console.log(`  ${c.cyan('└' + bar + '┘')}\n`);
+}
+// ─── File Operation ───────────────────────────────────────────────────────────
+function printFileOp(action, filePath, extra) {
+    const icons = { created: '✅', updated: '✏️ ', deleted: '🗑️ ' };
+    const extraStr = extra ? c.dim(` (${extra})`) : '';
+    console.log(`  ${icons[action]} ${c.cyan(filePath)}${extraStr}`);
+}
+// ─── Status / Footer (legacy) ─────────────────────────────────────────────────
 function printStatus(provider, model, tokens, cost) {
     const costStr = cost > 0 ? ` · $${cost.toFixed(4)}` : ' · free';
     console.log(`\n${c.dim('─'.repeat(50))}`);
@@ -217,7 +360,7 @@ function printDivider() {
 // ─── Section Headers ──────────────────────────────────────────────────────────
 function printSectionHeader(title) {
     console.log(`\n${c.bold(title)}`);
-    console.log(c.dim('─'.repeat(title.length)));
+    console.log(c.dim('─'.repeat(Math.min(title.replace(/\x1B\[[0-9;]*m/g, '').length, 60))));
 }
 // ─── Box ─────────────────────────────────────────────────────────────────────
 function printBox(title, content, color = 'cyan') {

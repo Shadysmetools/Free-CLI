@@ -1,10 +1,8 @@
 /**
  * Auto-Fallback Provider Chain
  *
- * When a provider fails with a retriable error (429, 413, 404, quota, rate limit),
- * automatically tries the next free provider without user intervention.
- *
- * Chain order: OpenRouter free → Groq → Google → (exhausted)
+ * When a provider fails with a retriable error, automatically tries the next
+ * free provider. Only emits ONE quiet notification if a fallback succeeds.
  */
 import { Provider, CompletionOptions, CompletionResult } from './index';
 export interface FallbackEntry {
@@ -14,19 +12,14 @@ export interface FallbackEntry {
     createProvider: () => Provider;
 }
 export declare const FREE_FALLBACK_CHAIN: FallbackEntry[];
-/**
- * Returns true if the error is retriable (rate limit, quota, context too large, etc.)
- */
 export declare function isRetriableError(error: unknown): boolean;
-export type FallbackNotifier = (message: string) => void;
+/** Called with the short model name when a fallback succeeds */
+export type FallbackNotifier = (modelName: string) => void;
 /**
  * Try provider.complete(); on retriable failure, walk FREE_FALLBACK_CHAIN
  * and return the first successful result.
  *
- * @param provider      The primary provider to try first
- * @param options       CompletionOptions (messages, tools, etc.)
- * @param notify        Optional callback to print status lines to the user
- * @returns             CompletionResult from whichever provider succeeded
+ * Emits ONE quiet notification (via `notify`) when a fallback succeeds.
  */
 export declare function completeWithFallback(provider: Provider, options: CompletionOptions, notify?: FallbackNotifier): Promise<{
     result: CompletionResult;
@@ -39,8 +32,6 @@ export interface ProviderStatus {
     available: boolean;
     reason: string;
 }
-/**
- * Check availability of all known providers and return their status.
- */
 export declare function checkAllProviders(): Promise<ProviderStatus[]>;
+export declare function extractShortError(msg: string): string;
 //# sourceMappingURL=fallback.d.ts.map

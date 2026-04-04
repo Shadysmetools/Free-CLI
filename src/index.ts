@@ -4,7 +4,7 @@ dotenv.config();
 
 import { startCLI } from './cli';
 import { runSetupWizard, isSetupComplete, silentAutoDetect } from './setup/wizard';
-import { printHelp } from './ui/terminal';
+import { printHelp, setVerboseMode } from './ui/terminal';
 
 const args = process.argv.slice(2);
 
@@ -16,6 +16,7 @@ const opts: {
   noColor?: boolean;
   oneShot?: string;
 } = {};
+let verboseArg = false;
 
 const positional: string[] = [];
 let runSetup = false;
@@ -30,6 +31,8 @@ for (let i = 0; i < args.length; i++) {
     opts.cwd = args[++i];
   } else if (arg === '--no-color') {
     opts.noColor = true;
+  } else if (arg === '--verbose' || arg === '-V') {
+    verboseArg = true;
   } else if (arg === '--setup' || arg === 'setup') {
     runSetup = true;
   } else if (arg === '--version' || arg === '-v') {
@@ -51,6 +54,8 @@ if (positional.length > 0 && positional[0] !== 'setup') {
 }
 
 async function main(): Promise<void> {
+  if (verboseArg) setVerboseMode(true);
+
   // `kcc setup` — force re-run wizard
   if (runSetup || positional[0] === 'setup') {
     await runSetupWizard(true);

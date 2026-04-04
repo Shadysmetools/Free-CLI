@@ -162,11 +162,17 @@ async function startCLI(opts = {}) {
     console.log(chalk_1.default.dim(`\nProvider: ${providerName}/${provider.model}${personaTag} | Type /help for commands\n`));
     // ── One-shot mode ─────────────────────────────────────────────────────────
     if (opts.oneShot) {
+        process.stdout.write(chalk_1.default.green('\nAI  › '));
+        let streamedContent = '';
         const result = await (0, core_1.runAgent)(provider, conversation, opts.oneShot, {
             cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
+            onToken: (tok) => { streamedContent += tok; },
         });
-        if (result.usage) {
-            console.log(chalk_1.default.dim(`\n[${providerName}/${provider.model} · ${result.usage.total_tokens} tokens]`));
+        if (result.content && !streamedContent && result.content.trim()) {
+            process.stdout.write((0, markdown_1.renderMarkdown)(result.content.trim()) + '\n');
+        }
+        if (result.footerLine) {
+            console.log(result.footerLine);
         }
         return;
     }
@@ -208,21 +214,24 @@ async function startCLI(opts = {}) {
             return;
         }
         // Regular message → run agent
-        // Save to history before + after
         history.addMessage({ role: 'user', content: input });
         try {
-            console.log();
-            console.log(chalk_1.default.green('AI  › '));
+            // Print "AI  › " inline — tokens or rendered content follow on the same line
+            process.stdout.write(chalk_1.default.green('\nAI  › '));
             let streamedContent = '';
             const result = await (0, core_1.runAgent)(provider, conversation, input, {
                 cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
                 onToken: (token) => { streamedContent += token; },
             });
             if (result.content) {
-                // If content wasn't streamed (non-streaming provider or fallback), print it
                 if (!streamedContent && result.content.trim()) {
+                    // Non-streaming (fallback) — print content right after AI ›
                     const rendered = (0, markdown_1.renderMarkdown)(result.content.trim());
-                    console.log(rendered);
+                    process.stdout.write(rendered + '\n');
+                }
+                // Footer (dim, after response)
+                if (result.footerLine) {
+                    console.log(result.footerLine);
                 }
                 history.addMessage({ role: 'assistant', content: result.content });
             }
@@ -233,9 +242,13 @@ async function startCLI(opts = {}) {
         rl.prompt();
     });
     rl.on('close', () => {
-        history.save();
-        console.log(chalk_1.default.dim('\nGoodbye! 👋'));
-        process.exit(0);
+        // Give any in-flight async operation time to finish before exiting
+        // (needed when stdin is piped: readline closes before runAgent returns)
+        setTimeout(() => {
+            history.save();
+            console.log(chalk_1.default.dim('\nGoodbye! 👋'));
+            process.exit(0);
+        }, 45000); // wait up to 45s for pending AI response
     });
 }
 // ─── Slash Command Handler ────────────────────────────────────────────────────
@@ -306,13 +319,14 @@ async function handleSlashCommand(input, ctx) {
                 (0, terminal_1.printSuccess)(`Saved to MEMORY.md`);
             }
             else if (sub === 'clear') {
-                console.log(chalk_1.default.yellow('\n⚠  This will clear MEMORY.md. Type "yes" to confirm:'));
-                // Simple inline confirmation
-                const confirm = await new Promise(resolve => {
-                    const tempRl = readline.createInterface({ input: process.stdin, output: process.stdout });
-                    tempRl.question('', (ans) => { tempRl.close(); resolve(ans.trim()); });
-                });
-                if (confirm.toLowerCase() === 'yes') {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+                const inq = require('inquirer');
+                const { confirmed } = await inq.prompt([{
+                        type: 'confirm', name: 'confirmed',
+                        message: 'Clear MEMORY.md? This cannot be undone.',
+                        default: false,
+                    }]);
+                if (confirmed) {
                     ctx.memory.clear();
                     (0, terminal_1.printSuccess)('MEMORY.md cleared.');
                 }
@@ -590,20 +604,91 @@ async function handleSlashCommand(input, ctx) {
         case 'review': {
             const file = args[0] ? `\n\nFocus on: ${args.join(' ')}` : '';
             const message = `Please review the recent code changes and provide feedback on correctness, code quality, performance considerations, and security issues.${file}`;
-            console.log(chalk_1.default.green('\nAI  › '));
-            await (0, core_1.runAgent)(ctx.provider, ctx.conversation, message, {
+            process.stdout.write(chalk_1.default.green('\nAI  › '));
+            let reviewStreamed = '';
+            const reviewResult = await (0, core_1.runAgent)(ctx.provider, ctx.conversation, message, {
                 cwd: ctx.cwd, stream: true, mcpClient: ctx.mcpClient,
                 registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                onToken: (t) => { reviewStreamed += t; },
             });
+            if (reviewResult.content && !reviewStreamed && reviewResult.content.trim()) {
+                process.stdout.write((0, markdown_1.renderMarkdown)(reviewResult.content.trim()) + '\n');
+            }
+            if (reviewResult.footerLine)
+                console.log(reviewResult.footerLine);
+            // Ask what to do with the review
+            if (reviewResult.content) {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+                const inq = require('inquirer');
+                const { action } = await inq.prompt([{
+                        type: 'list', name: 'action',
+                        message: 'What would you like to do?',
+                        choices: [
+                            { name: 'Auto-fix all issues', value: 'autofix' },
+                            { name: 'Fix critical issues only', value: 'fixcritical' },
+                            { name: 'Explain an issue', value: 'explain' },
+                            { name: 'Nothing — just review', value: 'skip' },
+                        ],
+                    }]);
+                if (action === 'autofix') {
+                    process.stdout.write(chalk_1.default.green('\nAI  › '));
+                    let s2 = '';
+                    const r2 = await (0, core_1.runAgent)(ctx.provider, ctx.conversation, 'Please fix all the issues you identified in the review.', {
+                        cwd: ctx.cwd, stream: true, mcpClient: ctx.mcpClient,
+                        registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                        onToken: (t) => { s2 += t; },
+                    });
+                    if (r2.content && !s2 && r2.content.trim())
+                        process.stdout.write((0, markdown_1.renderMarkdown)(r2.content.trim()) + '\n');
+                    if (r2.footerLine)
+                        console.log(r2.footerLine);
+                }
+                else if (action === 'fixcritical') {
+                    process.stdout.write(chalk_1.default.green('\nAI  › '));
+                    let s2 = '';
+                    const r2 = await (0, core_1.runAgent)(ctx.provider, ctx.conversation, 'Please fix only the critical/security issues you identified.', {
+                        cwd: ctx.cwd, stream: true, mcpClient: ctx.mcpClient,
+                        registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                        onToken: (t) => { s2 += t; },
+                    });
+                    if (r2.content && !s2 && r2.content.trim())
+                        process.stdout.write((0, markdown_1.renderMarkdown)(r2.content.trim()) + '\n');
+                    if (r2.footerLine)
+                        console.log(r2.footerLine);
+                }
+                else if (action === 'explain') {
+                    const { issue } = await inq.prompt([{ type: 'input', name: 'issue', message: 'Which issue to explain?' }]);
+                    if (issue) {
+                        process.stdout.write(chalk_1.default.green('\nAI  › '));
+                        let s2 = '';
+                        const r2 = await (0, core_1.runAgent)(ctx.provider, ctx.conversation, `Explain this issue in detail: ${issue}`, {
+                            cwd: ctx.cwd, stream: true, mcpClient: ctx.mcpClient,
+                            registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                            onToken: (t) => { s2 += t; },
+                        });
+                        if (r2.content && !s2 && r2.content.trim())
+                            process.stdout.write((0, markdown_1.renderMarkdown)(r2.content.trim()) + '\n');
+                        if (r2.footerLine)
+                            console.log(r2.footerLine);
+                    }
+                }
+            }
             break;
         }
         case 'test': {
             const message = 'Please run the project tests and report the results. If tests fail, explain what needs to be fixed.';
-            console.log(chalk_1.default.green('\nAI  › '));
-            await (0, core_1.runAgent)(ctx.provider, ctx.conversation, message, {
+            process.stdout.write(chalk_1.default.green('\nAI  › '));
+            let testStreamed = '';
+            const testResult = await (0, core_1.runAgent)(ctx.provider, ctx.conversation, message, {
                 cwd: ctx.cwd, stream: true, mcpClient: ctx.mcpClient,
                 registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                onToken: (t) => { testStreamed += t; },
             });
+            if (testResult.content && !testStreamed && testResult.content.trim()) {
+                process.stdout.write((0, markdown_1.renderMarkdown)(testResult.content.trim()) + '\n');
+            }
+            if (testResult.footerLine)
+                console.log(testResult.footerLine);
             break;
         }
         case 'diff': {
@@ -1009,7 +1094,6 @@ Output format (STRICTLY follow this):
 Be specific about filenames and actions. Max 8 steps.`;
             try {
                 spinner.stop();
-                console.log('');
                 const planRole = roles_1.BUILTIN_ROLES['planner'];
                 const planConv = (0, conversation_1.createConversation)(planRole.systemPrompt);
                 let planText = '';
@@ -1018,38 +1102,105 @@ Be specific about filenames and actions. Max 8 steps.`;
                     registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
                     onToken: (t) => { planText += t; },
                 });
-                // Display the plan in a formatted box
-                (0, terminal_1.printSectionHeader)('🎯 Execution Plan');
-                console.log('');
-                const lines = planText.split('\n');
-                for (const line of lines) {
-                    if (line.startsWith('## Plan:')) {
-                        console.log(chalk_1.default.bold.cyan(line));
+                // Parse plan text into structured steps for the box
+                const planLines = planText.split('\n');
+                let planTitle = task.slice(0, 40);
+                const parsedSteps = [];
+                let stepNum = 0;
+                let summary = '';
+                let complexity = '';
+                const risks = [];
+                for (const line of planLines) {
+                    const titleMatch = line.match(/^## Plan:\s*(.+)/);
+                    if (titleMatch) {
+                        planTitle = titleMatch[1].trim().slice(0, 45);
+                        continue;
                     }
-                    else if (line.startsWith('**Summary:**')) {
-                        console.log(chalk_1.default.white(line));
+                    const summaryMatch = line.match(/\*\*Summary:\*\*\s*(.+)/);
+                    if (summaryMatch) {
+                        summary = summaryMatch[1].trim();
+                        continue;
                     }
-                    else if (line.startsWith('**Complexity:**')) {
-                        const lvl = line.includes('High') ? chalk_1.default.red(line) : line.includes('Medium') ? chalk_1.default.yellow(line) : chalk_1.default.green(line);
-                        console.log(lvl);
+                    const complexMatch = line.match(/\*\*Complexity:\*\*\s*(.+)/);
+                    if (complexMatch) {
+                        complexity = complexMatch[1].trim();
+                        continue;
                     }
-                    else if (/^\d+\.\s/.test(line)) {
-                        console.log(chalk_1.default.cyan('  ' + line));
+                    const stepMatch = line.match(/^(\d+)\.\s+([^\s]+)\s+\[(\w+)\]\s+(.+?)(?:\s+→\s+(.+))?$/);
+                    if (stepMatch) {
+                        stepNum++;
+                        const [, , icon, , desc, target] = stepMatch;
+                        parsedSteps.push({
+                            num: stepNum,
+                            icon: icon ?? '•',
+                            role: '',
+                            description: (desc ?? '').slice(0, 38),
+                            target: target?.slice(0, 20),
+                        });
+                        continue;
                     }
-                    else if (line.startsWith('### Risks')) {
-                        console.log('\n' + chalk_1.default.bold.yellow(line));
+                    // Fallback: any numbered line
+                    const simpleStep = line.match(/^(\d+)\.\s+(.+)/);
+                    if (simpleStep && stepNum < 10) {
+                        stepNum++;
+                        const desc = simpleStep[2] ?? '';
+                        parsedSteps.push({ num: stepNum, icon: '•', role: '', description: desc.slice(0, 38) });
                     }
-                    else if (line.startsWith('- ')) {
-                        console.log(chalk_1.default.yellow('  ' + line));
-                    }
-                    else if (line.trim()) {
-                        console.log(chalk_1.default.dim('  ' + line));
+                    if (line.startsWith('- ') && planLines.indexOf(line) > planLines.findIndex(l => l.startsWith('### Risk'))) {
+                        risks.push(line.slice(2).slice(0, 50));
                     }
                 }
-                console.log('');
-                console.log(chalk_1.default.dim('  Execute this plan? Just say "go" or ask me to start with step 1.'));
-                console.log('');
-                // Also save plan to history
+                // Show the beautiful plan box
+                const cxTag = complexity ? ` · ${complexity}` : '';
+                (0, terminal_1.printPlanBox)(planTitle, parsedSteps.length > 0 ? parsedSteps : [{
+                        num: 1, icon: '📋', role: '', description: 'See full plan below',
+                    }], `${parsedSteps.length} steps${cxTag}`);
+                // Show summary + risks as dim text
+                if (summary)
+                    console.log(chalk_1.default.dim(`  ${summary}`));
+                if (risks.length > 0) {
+                    console.log(chalk_1.default.dim('\n  ⚠ Risks:'));
+                    for (const r of risks.slice(0, 3))
+                        console.log(chalk_1.default.dim(`    • ${r}`));
+                }
+                // If no steps were parsed, fall back to rendering the raw plan text
+                if (parsedSteps.length === 0) {
+                    console.log('');
+                    for (const line of planLines) {
+                        if (line.trim())
+                            console.log(`  ${chalk_1.default.dim(line)}`);
+                    }
+                }
+                // Inquirer prompt: what to do
+                // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+                const inq = require('inquirer');
+                const { planAction } = await inq.prompt([{
+                        type: 'list', name: 'planAction',
+                        message: 'Execute this plan?',
+                        choices: [
+                            { name: '▶  Yes — start now', value: 'run' },
+                            { name: '✏  Edit the plan first', value: 'edit' },
+                            { name: '✕  Cancel', value: 'cancel' },
+                        ],
+                    }]);
+                if (planAction === 'run') {
+                    process.stdout.write(chalk_1.default.green('\nAI  › '));
+                    let planStreamed = '';
+                    const planRunResult = await (0, core_1.runAgent)(ctx.provider, ctx.conversation, `Execute this plan step by step:\n\n${planText}`, {
+                        cwd: ctx.cwd, stream: true, mcpClient: ctx.mcpClient,
+                        registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                        onToken: (t) => { planStreamed += t; },
+                    });
+                    if (planRunResult.content && !planStreamed && planRunResult.content.trim()) {
+                        process.stdout.write((0, markdown_1.renderMarkdown)(planRunResult.content.trim()) + '\n');
+                    }
+                    if (planRunResult.footerLine)
+                        console.log(planRunResult.footerLine);
+                }
+                else if (planAction === 'edit') {
+                    (0, terminal_1.printInfo)('Edit the plan by describing changes:');
+                    process.stdout.write(chalk_1.default.cyan('  Edit › '));
+                }
                 ctx.history.addMessage({ role: 'user', content: `/plan ${task}` });
                 ctx.history.addMessage({ role: 'assistant', content: planText });
             }

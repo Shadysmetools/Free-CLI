@@ -6,7 +6,7 @@ import { ToolRegistry } from '../registry/index';
 import { MemoryManager } from '../memory/index';
 import { SkillsManager } from '../skills/index';
 import { TokenTracker } from '../tracking/tokens';
-import { printToolCall, printToolResult, printError, printResponseFooter, printWarning } from '../ui/terminal';
+import { printToolCall, printToolResult, printError, printWarning } from '../ui/terminal';
 import { completeWithFallback } from '../providers/fallback';
 import chalk from 'chalk';
 
@@ -24,6 +24,8 @@ export interface AgentOptions {
 
 export interface AgentResult {
   content: string;
+  /** Formatted dim footer line — print AFTER the response content */
+  footerLine?: string;
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
@@ -35,34 +37,23 @@ export async function runAgent(
   providerArg: Provider,
   conversation: ConversationState,
   userMessage: string,
-  options: AgentOptions
+  options: AgentOptions,
 ): Promise<AgentResult> {
-  // Allow provider to be reassigned on fallback
   let provider = providerArg;
   const {
-    cwd,
-    stream,
-    onToken,
-    maxIterations = 10,
-    mcpClient,
-    registry,
-    memory,
-    skills,
-    tokenTracker,
+    cwd, stream, onToken, maxIterations = 10,
+    mcpClient, registry, memory, skills, tokenTracker,
   } = options;
 
   const turnStart = Date.now();
 
-  // ── Skill injection per-message ──────────────────────────────────────────
-  // Detect relevant skills and inject into this turn's system message
+  // ── Skill injection ───────────────────────────────────────────────────────
   if (skills) {
     const skillCtx = skills.getSkillContext(userMessage);
     if (skillCtx) {
-      // Inject as a temporary system message for this turn
       const systemIdx = conversation.messages.findIndex(m => m.role === 'system');
       const existing = systemIdx >= 0 ? conversation.messages[systemIdx].content : '';
       if (!existing.includes(skillCtx.slice(0, 40))) {
-        // Only inject if not already present
         addMessage(conversation, {
           role: 'system',
           content: `[Active Skills for this request]${skillCtx}`,
@@ -71,14 +62,12 @@ export async function runAgent(
     }
   }
 
-  // Add user message
   addMessage(conversation, { role: 'user', content: userMessage });
 
   // ── Build tool list ───────────────────────────────────────────────────────
   let allTools: Tool[];
   if (registry) {
     allTools = registry.getEnabled();
-    // Sync MCP tools into registry if connected
     if (mcpClient) {
       const mcpTools = await mcpClient.getTools();
       registry.registerMCPTools(mcpTools);
@@ -96,9 +85,8 @@ export async function runAgent(
   let lastContent = '';
   let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
-  // Provider-specific context limits (in characters — rough proxy for tokens)
   const CONTEXT_CHAR_LIMITS: Record<string, number> = {
-    groq: 24_000,    // ~6K tokens × ~4 chars/token — conservative for 8K limit
+    groq: 24_000,
     openrouter: 80_000,
     anthropic: 200_000,
     ollama: 60_000,
@@ -106,13 +94,11 @@ export async function runAgent(
   };
   const contextLimit = CONTEXT_CHAR_LIMITS[provider.name] ?? 60_000;
 
-  /** Trim conversation to fit within charLimit, keeping system + last minKeep messages. */
   function trimConversation(minKeep = 5): void {
     const msgs = conversation.messages;
     const systemMsgs = msgs.filter(m => m.role === 'system');
     const nonSystem = msgs.filter(m => m.role !== 'system');
 
-    // Truncate long tool results to 500 chars to save context
     for (const m of nonSystem) {
       if (m.role === 'tool' && m.content.length > 500) {
         m.content = m.content.slice(0, 500) + '\n…[truncated]';
@@ -122,11 +108,10 @@ export async function runAgent(
     const totalChars = msgs.reduce((sum, m) => sum + m.content.length, 0);
     if (totalChars <= contextLimit) return;
 
-    // Remove old non-system messages until we're under the limit, keeping last minKeep
     while (nonSystem.length > minKeep) {
       const totalNow = [...systemMsgs, ...nonSystem].reduce((sum, m) => sum + m.content.length, 0);
       if (totalNow <= contextLimit) break;
-      nonSystem.shift(); // remove oldest
+      nonSystem.shift();
     }
 
     conversation.messages = [...systemMsgs, ...nonSystem];
@@ -135,8 +120,8 @@ export async function runAgent(
   while (iterations < maxIterations) {
     iterations++;
     const doStream = stream && iterations === 1;
+    let tokensStreamed = false;
 
-    // Auto-trim context before each provider call
     trimConversation(5);
 
     let result;
@@ -148,17 +133,17 @@ export async function runAgent(
           tools: allTools,
           stream: doStream,
           onToken: doStream ? (token) => {
+            tokensStreamed = true;
             process.stdout.write(chalk.white(token));
             if (onToken) onToken(token);
           } : undefined,
         },
-        (msg) => {
-          // Print fallback status on its own line
-          process.stdout.write('\n' + chalk.yellow(msg) + '\n');
+        (modelName) => {
+          // Quiet one-liner when fallback provider is used
+          process.stdout.write(chalk.dim(`\n  ℹ switched to ${modelName}\n`));
         },
       );
       result = fallbackResult.result;
-      // If provider was swapped, update for remaining iterations
       if (fallbackResult.activeProvider !== provider) {
         provider = fallbackResult.activeProvider;
       }
@@ -170,24 +155,25 @@ export async function runAgent(
 
     if (result.usage) {
       addUsage(conversation, result.usage);
-      totalUsage.prompt_tokens += result.usage.prompt_tokens;
+      totalUsage.prompt_tokens  += result.usage.prompt_tokens;
       totalUsage.completion_tokens += result.usage.completion_tokens;
-      totalUsage.total_tokens += result.usage.total_tokens;
+      totalUsage.total_tokens   += result.usage.total_tokens;
     }
 
-    if (doStream && result.content) {
+    // Only add newline if tokens actually streamed to stdout
+    if (tokensStreamed && result.content) {
       process.stdout.write('\n');
     }
 
     lastContent = result.content;
 
-    // ── No tool calls — done ────────────────────────────────────────────────
+    // ── No tool calls → done ──────────────────────────────────────────────
     if (!result.tool_calls || result.tool_calls.length === 0) {
       addMessage(conversation, { role: 'assistant', content: result.content });
       break;
     }
 
-    // ── Has tool calls — process them ───────────────────────────────────────
+    // ── Tool calls → process them ─────────────────────────────────────────
     const assistantMsg: Message = {
       role: 'assistant',
       content: result.content,
@@ -206,33 +192,24 @@ export async function runAgent(
 
       let toolResult: string;
       try {
-        // Memory tools (intercepted before executeTool)
         if (memory && toolName === 'memory_search') {
           const query = String(toolArgs.query ?? '');
           const results = memory.search(query);
-          if (results.length === 0) {
-            toolResult = 'No memory entries found matching that query.';
-          } else {
-            toolResult = results.map(r => `${r.file}:${r.line}  ${r.content}`).join('\n');
-          }
+          toolResult = results.length === 0
+            ? 'No memory entries found matching that query.'
+            : results.map(r => `${r.file}:${r.line}  ${r.content}`).join('\n');
         } else if (memory && toolName === 'memory_save') {
           const note = String(toolArgs.note ?? '');
           const category = toolArgs.category ? String(toolArgs.category) : 'Notes';
           memory.save(note, category);
           toolResult = `✓ Saved to MEMORY.md under "${category}"`;
-        }
-        // MCP tools
-        else if (mcpClient && await mcpClient.hasTool(toolName)) {
+        } else if (mcpClient && await mcpClient.hasTool(toolName)) {
           const mcpResult = await mcpClient.callTool(toolName, toolArgs);
           toolResult = mcpResult.content;
-        }
-        // Built-in tools
-        else {
+        } else {
           const execResult = await executeTool(toolName, toolArgs, cwd);
           toolResult = execResult.content;
-          if (execResult.isError) {
-            toolResult = `ERROR: ${toolResult}`;
-          }
+          if (execResult.isError) toolResult = `ERROR: ${toolResult}`;
         }
       } catch (err) {
         toolResult = `ERROR: ${(err as Error).message}`;
@@ -249,29 +226,32 @@ export async function runAgent(
     }
   }
 
-  // ── Track tokens ──────────────────────────────────────────────────────────
+  // ── Build footer line + track tokens ──────────────────────────────────────
+  let footerLine: string | undefined;
   if (tokenTracker && totalUsage.total_tokens > 0) {
     const durationMs = Date.now() - turnStart;
     const entry = tokenTracker.track(totalUsage, provider.name, provider.model, durationMs);
-    const tokenLine = tokenTracker.formatResponseLine(entry);
-    printResponseFooter(provider.name, provider.model, tokenLine);
 
-    // Budget check
+    const cost = tokenTracker.getCostForEntry(entry);
+    const costStr = cost > 0 ? `$${cost.toFixed(4)}` : 'free';
+    const totalToks = (entry.inputTokens + entry.outputTokens).toLocaleString();
+    const modelShort = entry.model.split('/').pop() ?? entry.model;
+    footerLine = chalk.dim(`  ${modelShort} · ${totalToks} tokens · ${costStr}`);
+
     const budget = tokenTracker.checkBudget();
     if (budget.message) {
       printWarning(budget.message);
     }
   }
 
-  // ── Auto-save to session log ──────────────────────────────────────────────
+  // ── Auto-save session log ─────────────────────────────────────────────────
   if (memory && lastContent) {
     try {
       memory.appendToday(`**User:** ${userMessage.slice(0, 200)}\n\n**AI:** ${lastContent.slice(0, 500)}`);
     } catch { /* non-fatal */ }
   }
 
-  return { content: lastContent, usage: totalUsage };
+  return { content: lastContent, usage: totalUsage, footerLine };
 }
 
-// Re-export fileChanges for /undo command
 export { fileChanges };

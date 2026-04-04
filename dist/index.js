@@ -42,6 +42,7 @@ const terminal_1 = require("./ui/terminal");
 const args = process.argv.slice(2);
 // Parse flags
 const opts = {};
+let verboseArg = false;
 const positional = [];
 let runSetup = false;
 for (let i = 0; i < args.length; i++) {
@@ -57,6 +58,9 @@ for (let i = 0; i < args.length; i++) {
     }
     else if (arg === '--no-color') {
         opts.noColor = true;
+    }
+    else if (arg === '--verbose' || arg === '-V') {
+        verboseArg = true;
     }
     else if (arg === '--setup' || arg === 'setup') {
         runSetup = true;
@@ -80,6 +84,8 @@ if (positional.length > 0 && positional[0] !== 'setup') {
     opts.oneShot = positional.join(' ');
 }
 async function main() {
+    if (verboseArg)
+        (0, terminal_1.setVerboseMode)(true);
     // `kcc setup` — force re-run wizard
     if (runSetup || positional[0] === 'setup') {
         await (0, wizard_1.runSetupWizard)(true);
