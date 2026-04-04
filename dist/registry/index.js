@@ -92,7 +92,7 @@ class ToolRegistry {
             list.push(tool);
             byCategory.set(tool.category, list);
         }
-        const categoryOrder = ['file', 'shell', 'git', 'memory', 'whisper', 'mcp', 'custom'];
+        const categoryOrder = ['file', 'shell', 'git', 'memory', 'document', 'visual', 'whisper', 'mcp', 'custom'];
         const lines = [''];
         for (const cat of categoryOrder) {
             const tools = byCategory.get(cat);
@@ -139,6 +139,8 @@ function categoryLabel(cat) {
         shell: '⚡ Shell Tools',
         git: '🌿 Git Tools',
         memory: '🧠 Memory Tools',
+        document: '📑 Document Tools',
+        visual: '🎨 Visual / Diagram Tools',
         whisper: '🎤 Whisper Tools',
         mcp: '🔌 MCP Tools',
         custom: '🔧 Custom Tools',
@@ -163,6 +165,18 @@ function createDefaultRegistry() {
         const tool = getBuiltinTool(name);
         if (tool)
             registry.register(tool, 'git');
+    }
+    // Document tools
+    for (const name of ['generate_pdf', 'generate_excel']) {
+        const tool = getBuiltinTool(name);
+        if (tool)
+            registry.register(tool, 'document');
+    }
+    // Visual / Diagram tools
+    for (const name of ['generate_diagram', 'generate_image']) {
+        const tool = getBuiltinTool(name);
+        if (tool)
+            registry.register(tool, 'visual');
     }
     // Memory tools (definitions only — execution handled by memory system)
     registry.register({

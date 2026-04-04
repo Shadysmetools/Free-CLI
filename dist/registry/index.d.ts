@@ -10,7 +10,7 @@
  */
 import { Tool } from '../providers/index';
 import { ToolResult } from '../agent/tools';
-export type ToolCategory = 'file' | 'shell' | 'git' | 'mcp' | 'whisper' | 'memory' | 'custom';
+export type ToolCategory = 'file' | 'shell' | 'git' | 'mcp' | 'whisper' | 'memory' | 'document' | 'visual' | 'custom';
 export interface RegisteredTool extends Tool {
     category: ToolCategory;
     enabled: boolean;

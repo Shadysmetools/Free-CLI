@@ -1,777 +1,721 @@
-<div align="center">
-
 # ⚡ knowcap-code
 
-### Free AI Coding Assistant — Claude Code Alternative
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="version"/>
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license"/>
+  <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=for-the-badge&logo=node.js" alt="node"/>
+  <img src="https://img.shields.io/badge/TypeScript-5.3-blue?style=for-the-badge&logo=typescript" alt="typescript"/>
+  <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="platforms"/>
+</p>
 
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js&logoColor=white)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Providers](https://img.shields.io/badge/AI_Providers-6-purple)](#providers)
-[![Free](https://img.shields.io/badge/Cost-100%25_Free-brightgreen)](#free-providers)
-
-**Works like Claude Code — reads/writes/edits files, runs commands, understands your codebase — but free with any model.**
-
-[Quick Start](#quick-start) · [Providers](#providers) · [Slash Commands](#slash-commands) · [Memory](#memory-system) · [Skills](#skills-system) · [Token Tracking](#token-tracking) · [OpenClaw](#openclaw-integration)
-
-</div>
+<p align="center">
+  <b>Free AI coding assistant that works like Claude Code — but with <i>any</i> model.</b><br/>
+  Ollama (local) · Groq (free tier) · Gemini · Claude · GPT · OpenRouter
+</p>
 
 ---
-
-```
-┌─────────────────────────────────────────┐
-│  ⚡ knowcap-code  free AI coding agent   │
-│  ollama · groq · gemini · claude · gpt  │
-└─────────────────────────────────────────┘
-
-🎯 5 skills available (debug, docker, git-workflow, github, npm)
-Provider: groq/llama-3.3-70b-versatile | Type /help for commands
-
-› Create a REST API endpoint for user authentication
-
-AI  ›
-I'll create an auth endpoint. Let me check your project structure first...
-
-┌─ ⚙ list_files
-│ src/ routes/ middleware/ package.json
-└─
-
-┌─ ⚙ write_file
-│ ✓ Created src/routes/auth.ts (87 lines)
-└─
-
-[groq/llama-3.3-70b-versatile · 1,432 in / 387 out · free]
-```
 
 ## ✨ Features
 
-| Feature | Description |
-|---------|-------------|
-| 🆓 **100% Free** | Ollama (local), Groq free tier, Gemini free tier, OpenRouter free models |
-| 🔑 **BYOK** | Bring your own key for Anthropic, OpenAI |
-| 📁 **File Operations** | Read, write, edit with precise text replacement |
-| 🐚 **Shell Commands** | Run tests, builds, installs, any command |
-| 🔀 **Git Integration** | Status, diff, commit from natural language |
-| 🔌 **MCP Support** | Model Context Protocol — connect any external tool |
-| 🎙️ **Whisper Transcription** | Local or Groq free API |
-| 🧠 **Memory System** | `MEMORY.md` project memory, session logs, search |
-| 🎯 **Skills System** | Auto-detected expertise loaded per-message |
-| 📊 **Token Tracking** | Per-message cost, session totals, budget alerts |
-| 🔧 **Tool Registry** | Enable/disable tools, categories, MCP auto-register |
-| 🐾 **OpenClaw Integration** | Manage agents, sessions, cron from the CLI |
-| 🧙 **Smart Setup** | Auto-detects providers, zero config if Ollama running |
-| ↩️ **Undo** | Revert any file change |
-| 🌊 **Streaming** | Token-by-token output |
-| 🌍 **Cross-Platform** | macOS, Linux, Windows |
+| # | Feature | Command |
+|---|---------|---------|
+| 1 | 🤖 **Multi-provider AI** | `--provider ollama`, `--provider groq`, etc. |
+| 2 | 💬 **Interactive REPL** | `kcc` |
+| 3 | 🔍 **Code reviewer** | `/review [file]` |
+| 4 | 🤖 **Sub-agent orchestration** | `/plan <task>`, `/agents list` |
+| 5 | 🖼️ **Multimodal input** | `--image`, `--video`, `--voice` |
+| 6 | 🎤 **Live voice commands** | `/voice` |
+| 7 | 🌐 **REST API server** | `kcc serve --port 3333` |
+| 8 | 🔌 **Plugin / extension system** | `/skills add <name>` |
+| 9 | 🤖 **Custom bot creation** | `/agents create` |
+| 10 | 📚 **Agentic RAG** | `/rag index`, `/rag search` |
+| 11 | 📄 **PDF generation** | `generate_pdf` tool |
+| 12 | 📊 **Excel generation** | `generate_excel` tool |
+| 13 | 🧜 **Mermaid diagrams** | `/diagram`, `/architecture` |
+| 14 | 🎨 **Image generation** | `/image <prompt>` |
+| 15 | 🌍 **Persona / dialect system** | `/persona set egyptian` |
+| 16 | 👤 **User profile** | `/profile show` |
+| 17 | 📜 **Persistent history** | `/history`, `/history load` |
+| 18 | 🧠 **Project memory** | `memory_save`, `memory_search` |
+| 19 | 🔗 **MCP protocol** | Connects to any MCP server |
+| 20 | 🔌 **OpenClaw integration** | Sends tasks to OpenClaw agents |
+| 21 | 🎙️ **Whisper transcription** | `--voice file.mp3` |
+| 22 | 📊 **Token tracking** | `/tokens`, budget alerts |
+| 23 | 🌿 **Git integration** | `/git`, `/diff`, `/undo` |
+| 24 | ⚙️ **Project config** | `KNOWCAP.md`, `.knowcap/config.yaml` |
 
 ---
 
-## Prerequisites
+## 🚀 Quick Start
 
-| Requirement | Notes |
-|-------------|-------|
-| **Node.js 18+** | Required |
-| **npm / yarn / pnpm** | Any package manager |
-| **Ollama** | Optional — for free local AI |
-| **Python 3** | Optional — for local Whisper transcription |
-| **ffmpeg** | Optional — for video frame extraction |
-| **git** | Optional — for git tools |
-
----
-
-## Quick Start
-
-### Option 1 — npm (global install)
+### Install globally from npm
 
 ```bash
 npm install -g knowcap-code
-kcc
+kcc                          # start interactive session
 ```
 
-On first run, knowcap-code **auto-detects** what's available and starts immediately — no config needed if Ollama is running or you have API keys set.
-
-### Option 2 — From Source
+### Install from source
 
 ```bash
-# 1. Clone
-git clone https://github.com/Smetools/knowcap-code.git
+git clone https://github.com/Shadysmetools/knowcap-code.git
 cd knowcap-code
-
-# 2. Install dependencies
 npm install
-
-# 3. Build
 npm run build
-
-# 4. Link globally (optional)
-npm link
-
-# 5. Run
-kcc
-# or: node dist/index.js
-```
-
-### Option 3 — npx (no install)
-
-```bash
-npx knowcap-code
+npm link                     # makes `kcc` available globally
+kcc --help
 ```
 
 ---
 
-## Smart First-Run Setup
+## 📦 Installation
 
-On the **first run**, knowcap-code auto-detects providers:
+### Requirements
 
-```
-⚡ Welcome to knowcap-code!
+- **Node.js** ≥ 18
+- One or more AI providers (see [Provider Setup](#-provider-setup))
 
-🔍 Detecting AI providers...
-   ✅ Ollama (local, free) — qwen2.5-coder:7b ready
-   ❌ Groq (free cloud, fast) — no GROQ_API_KEY set
-   ❌ Google Gemini (free tier) — no GOOGLE_API_KEY set
+### From npm
 
-✅ Ready to go! Using Ollama (free, local).
-   Type your first message or /help for commands.
+```bash
+npm install -g knowcap-code
 ```
 
-**If nothing is found**, it shows a guided menu:
+### From source
 
-```
-📋 Quick Setup — choose a provider:
-
-  1. 🆓 Ollama — local, free, private
-  2. 🆓 Groq — free cloud, ultra-fast
-  3. 🆓 Google Gemini — free tier
-  4. 💰 Anthropic Claude — BYOK
-  5. 💰 OpenAI GPT — BYOK
-  6. ⏭  Skip
-
-  Choice [1]:
+```bash
+git clone https://github.com/Shadysmetools/knowcap-code.git
+cd knowcap-code
+npm install
+npm run build          # compiles TypeScript → dist/
+npm link               # optional: installs kcc globally
 ```
 
-Re-run setup anytime: `kcc setup`
+### First run
+
+```bash
+kcc                    # auto-detects provider (Ollama if running, else prompts)
+kcc setup              # interactive setup wizard
+```
 
 ---
 
-## Providers
+## 🤖 Provider Setup
 
-### Free Providers (No Credit Card)
-
-| Provider | Setup | Speed | Best For |
-|----------|-------|-------|----------|
-| **Ollama** | Install locally | Fast (local) | Privacy, offline, no limits |
-| **Groq** | Free API key | Very fast | Quick tasks, free cloud |
-| **Google Gemini** | Free API key | Fast | Large context, multimodal |
-| **OpenRouter** | Free API key | Varies | Access many free models |
-
-### BYOK Providers
-
-| Provider | Key Env Var | Best Model |
-|----------|------------|------------|
-| **Anthropic** | `ANTHROPIC_API_KEY` | claude-3-5-haiku (cheap), claude-sonnet (smart) |
-| **OpenAI** | `OPENAI_API_KEY` | gpt-4o-mini (cheap), gpt-4o (smart) |
-
-### Setup Examples
-
-#### Ollama (Free, Local)
+### Ollama (Free, Local)
 
 ```bash
-# 1. Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-# Windows: https://ollama.com/download
-
-# 2. Pull a coding model
-ollama pull qwen2.5-coder:7b      # 4.7GB, great for code
-ollama pull llama3.1:8b           # 4.7GB, general purpose
-ollama pull deepseek-coder-v2:16b # 9GB, excellent for code
-
-# 3. Run kcc — it auto-detects Ollama
-kcc
+# Install Ollama: https://ollama.ai
+ollama pull llama3.1        # or any model
+kcc --provider ollama --model llama3.1
 ```
 
-#### Groq (Free Cloud)
+### Groq (Free Tier)
 
 ```bash
-# Get free key: https://console.groq.com (no credit card)
-export GROQ_API_KEY=gsk_xxx
-kcc --provider groq
-```
-
-#### Google Gemini (Free Tier)
-
-```bash
-# Get free key: https://aistudio.google.com
-export GOOGLE_API_KEY=AIza_xxx
-kcc --provider google
-```
-
-#### Anthropic Claude
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-xxx
-kcc --provider anthropic
-```
-
-#### OpenAI
-
-```bash
-export OPENAI_API_KEY=sk-xxx
-kcc --provider openai
-```
-
-### Switching Models
-
-```bash
-# In session
-› /model groq:llama-3.3-70b-versatile
-› /model anthropic:claude-3-5-sonnet-20241022
-› /model ollama:deepseek-coder-v2:16b
-
-# From command line
+export GROQ_API_KEY="gsk_..."
 kcc --provider groq --model llama-3.3-70b-versatile
-kcc --provider anthropic --model claude-3-opus-20240229
+```
+
+### Google Gemini
+
+```bash
+export GOOGLE_API_KEY="AIza..."
+kcc --provider google --model gemini-2.0-flash
+```
+
+### Anthropic Claude
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+kcc --provider anthropic --model claude-3-5-sonnet-20241022
+```
+
+### OpenAI / GPT
+
+```bash
+export OPENAI_API_KEY="sk-..."
+kcc --provider openai --model gpt-4o
+```
+
+### OpenRouter (100+ models)
+
+```bash
+export OPENROUTER_API_KEY="sk-or-..."
+kcc --provider openrouter --model anthropic/claude-3.5-sonnet
+```
+
+### Persist your default provider
+
+```bash
+kcc --provider groq --model llama-3.3-70b-versatile
+# Type /model groq:llama-3.3-70b-versatile to save as default
+```
+
+Or edit `~/.knowcap-code/settings.yaml`:
+
+```yaml
+defaultProvider: groq
+providers:
+  groq:
+    apiKey: gsk_...
+    model: llama-3.3-70b-versatile
 ```
 
 ---
 
-## Slash Commands
+## 💻 Usage
+
+### Interactive session
+
+```bash
+kcc                              # Start REPL
+kcc --provider ollama            # Use Ollama
+kcc --model gemini-2.0-flash     # Specific model
+kcc --cwd /path/to/project       # Set working directory
+```
+
+### One-shot query
+
+```bash
+kcc "explain this function" < src/utils.ts
+kcc "write a Dockerfile for a Node.js app"
+```
+
+### With files (multimodal)
+
+```bash
+kcc --image screenshot.png "what's wrong with this UI?"
+kcc --video demo.mp4 "summarize this demo"
+kcc --voice meeting.mp3 "transcribe and summarize"
+```
+
+### REST API server
+
+```bash
+kcc serve --port 3333
+
+# Then call:
+curl -X POST http://localhost:3333/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "write a hello world in Go"}'
+```
+
+---
+
+## 📖 Slash Command Reference
 
 ### Conversation
 
 | Command | Description |
 |---------|-------------|
 | `/help` | Show all commands |
-| `/model [provider:model]` | Switch AI provider/model |
-| `/clear` | Clear conversation history |
-| `/compact` | Summarize history to save tokens |
+| `/model [provider:model]` | Switch AI model |
+| `/clear` | Clear conversation |
+| `/compact` | Summarize + compress history |
 | `/exit` | Exit session |
 
 ### Code
 
 | Command | Description |
 |---------|-------------|
-| `/review [file]` | Code review with AI |
+| `/review [file]` | Review code changes with AI |
 | `/test` | Run project tests |
-| `/diff [file]` | Show git diff (color-coded) |
-| `/git <args>` | Run any git command |
+| `/diff [file]` | Show git diff |
+| `/git [args]` | Run git commands |
 | `/undo` | Undo last file change |
-| `/init` | Create KNOWCAP.md memory file |
+| `/init` | Create `KNOWCAP.md` memory file |
 
-### Memory System
-
-| Command | Description |
-|---------|-------------|
-| `/memory` | Show MEMORY.md contents |
-| `/memory search <query>` | Search across all memory files |
-| `/memory save <note>` | Save a note to MEMORY.md |
-| `/memory clear` | Clear MEMORY.md (with confirmation) |
-| `/memory today` | View today's session log |
-
-### Skills System
+### Agents & Planning
 
 | Command | Description |
 |---------|-------------|
-| `/skills` | List all available skills |
-| `/skills info <name>` | Show skill details and instructions |
-| `/skills add <name>` | Create a new custom skill |
+| `/plan <task>` | Break task into sub-agents |
+| `/agents list` | List available agent roles |
+| `/agents run <role> <task>` | Run a specific agent role |
+| `/review` | Code reviewer agent |
 
-### Token Tracking
-
-| Command | Description |
-|---------|-------------|
-| `/cost` | Full session cost breakdown |
-| `/stats` | Alias for `/cost` |
-| `/tokens` | Compact token summary |
-| `/budget <amount>` | Set USD budget limit |
-
-### Tool Registry
+### Multimodal
 
 | Command | Description |
 |---------|-------------|
-| `/tools` | List all tools by category |
-| `/tools info <name>` | Show tool details and parameters |
-| `/tools enable <name>` | Enable a disabled tool |
-| `/tools disable <name>` | Disable a tool |
+| `/voice` | Start live mic recording |
+| `/image <prompt>` | Generate an image |
+| `/diagram <desc>` | Generate Mermaid diagram |
+| `/architecture` | Generate architecture diagram |
 
-### OpenClaw Gateway
-
-| Command | Description |
-|---------|-------------|
-| `/openclaw status` | Gateway health + connected agents |
-| `/openclaw agents` | List all configured agents |
-| `/openclaw sessions` | Active sessions |
-| `/openclaw send <session> <msg>` | Send message to an agent |
-| `/openclaw history <session>` | View session transcript |
-| `/openclaw cron` | List cron jobs |
-
-### Other
+### Memory & Knowledge
 
 | Command | Description |
 |---------|-------------|
-| `/transcribe <file>` | Transcribe audio/video with Whisper |
-| `/mcp` | List MCP servers and tools |
-| `/config` | Show/edit configuration |
+| `/memory list` | List memory files |
+| `/memory save` | Save a note |
+| `/rag index [path]` | Index files for RAG |
+| `/rag search <query>` | Search indexed knowledge |
+
+### History
+
+| Command | Description |
+|---------|-------------|
+| `/history` | List recent sessions |
+| `/history load <id>` | Resume a past session |
+| `/history export` | Export session as markdown |
+
+### Persona
+
+| Command | Description |
+|---------|-------------|
+| `/persona list` | List available personas |
+| `/persona set <id>` | Switch language/dialect |
+| `/persona info <id>` | View persona details |
+| `/persona reset` | Reset to English |
+
+### Profile
+
+| Command | Description |
+|---------|-------------|
+| `/profile show` | Show your user profile |
+| `/profile set name <name>` | Set your name |
+| `/profile set role <role>` | Set your role |
+
+### Skills & Plugins
+
+| Command | Description |
+|---------|-------------|
+| `/skills list` | List available skills |
+| `/skills info <name>` | Skill details |
+| `/skills add <name>` | Add a skill |
+
+### Tools & Tokens
+
+| Command | Description |
+|---------|-------------|
+| `/tools list` | List all available tools |
+| `/tokens` | Token usage stats |
+| `/budget <amount>` | Set token budget |
+
+### Settings
+
+| Command | Description |
+|---------|-------------|
+| `/settings` | Show current settings |
+| `/settings set <key> <val>` | Update a setting |
+| `/setup` | Interactive setup wizard |
 
 ---
 
-## Memory System
+## 🌍 Persona / Language System
 
-knowcap-code uses a `MEMORY.md` file (inspired by Claude Code's `CLAUDE.md`) to give the AI persistent project context.
-
-### How It Works
+knowcap-code can respond in different languages and dialects:
 
 ```
-your-project/
-├── MEMORY.md          ← Project memory (commit this!)
-├── memory/
-│   ├── 2026-04-01.md  ← Session logs (auto-generated, .gitignore)
-│   └── 2026-04-04.md
-└── src/
+/persona list
+
+  🇬🇧  english      English ← default
+  🇪🇬  egyptian     Egyptian Arabic (عامية مصرية)
+  🔤  franco       Franco-Arab / Arabizi
+  🇸🇦  saudi        Saudi Arabic (اللهجة السعودية)
+  🇲🇦  moroccan     Moroccan Darija (الدارجة المغربية)
+  🇫🇷  french       French (Français)
+  🇪🇸  spanish      Spanish (Español)
+  🇩🇪  german       German (Deutsch)
+  🇧🇷  portuguese   Portuguese (Português)
 ```
 
-- **`MEMORY.md`** — Human-written project context, version-controlled
-- **`memory/YYYY-MM-DD.md`** — AI-written session logs, not committed
-- **`~/.knowcap-code/MEMORY.md`** — Personal user-level memory
-
-### Memory File Format
-
-```markdown
-# MEMORY.md
-
-## Decisions
-- [2026-04-04] Use pnpm instead of npm for this project
-- [2026-04-04] Auth uses JWT with 24h expiry
-
-## Context
-- Tech stack: Next.js 14, Supabase, TypeScript
-- Tests: Vitest, run with `pnpm test`
-- Deploy: Vercel, auto-deploy on main push
-
-## Workflows
-- Build: `pnpm build`
-- Test: `pnpm test`
-- Lint: `pnpm lint`
-
-## Todo
-- [ ] Fix the auth refresh token bug
-- [x] Set up CI pipeline
-```
-
-### Load Limit
-
-Memory files are loaded at session start with a **200-line / 25KB limit** (matching Claude Code's CLAUDE.md behavior). Use concise, high-value notes.
-
-### Usage
+**Switch persona:**
 
 ```bash
-# In session
-› /memory save "Use pnpm for this project"
-✓ Saved to MEMORY.md
-
-› /memory search auth
-  MEMORY.md:5  - [2026-04-04] Auth uses JWT with 24h expiry
-
-› /memory
-📋 MEMORY.md
-[shows full contents]
+/persona set egyptian        # يرد بالعامية المصرية
+/persona set franco          # yerd b el franco arabizi
+/persona set french          # Répond en français
+/persona reset               # back to English
 ```
 
-The AI also uses `memory_save` and `memory_search` tools automatically when it discovers something important.
+**Custom persona** — create `~/.knowcap-code/personas/mybot.yaml`:
+
+```yaml
+id: mybot
+name: My Custom Bot
+language: en
+systemPrompt: "Respond like a senior DevOps engineer. Be terse and precise."
+```
 
 ---
 
-## Skills System
+## 👤 User Profile
 
-Skills are auto-detected expertise that get injected into the AI's context when relevant.
+Your profile is stored at `~/.knowcap-code/profile.yaml` and injected into the system prompt so the AI knows who it's talking to.
 
-### Built-in Skills
+```yaml
+name: "Shady"
+role: "AI Product Manager"
+company: "Knowcap"
+preferences:
+  language: "TypeScript"
+  style: "detailed explanations"
+  review_strictness: "high"
+  expertise: "senior"
+projects:
+  - name: knowcap
+    path: "~/knowcap"
+    stack: "React, Node.js, Supabase"
+```
 
-| Skill | Triggers On |
-|-------|-------------|
-| `github` | PR, issue, CI, workflow, gh CLI |
-| `docker` | container, Dockerfile, compose |
-| `npm` | package.json, node_modules, install |
-| `debug` | error, bug, crash, exception |
-| `git-workflow` | rebase, cherry-pick, bisect, stash |
-
-### Custom Skills
+**Commands:**
 
 ```bash
-# Create a skill for your project
-› /skills add supabase
-
-# Edit skills/supabase/SKILL.md
+/profile show
+/profile set name Shady
+/profile set role "Senior Developer"
 ```
 
-**SKILL.md format** (YAML frontmatter + instructions):
+---
+
+## 📚 Agentic RAG
+
+Index your codebase or documents for semantic search:
+
+```bash
+/rag index ./src            # index source files
+/rag index ./docs           # index docs
+/rag search "authentication flow"
+/rag search "database connection"
+```
+
+The RAG system uses embedding + BM25 reranking for accurate retrieval and injects relevant context into your conversation.
+
+---
+
+## 🧜 Diagrams
+
+Generate Mermaid diagrams from descriptions:
+
+```bash
+/diagram "user authentication flow with JWT"
+/architecture "microservices: API gateway, auth service, user service, database"
+```
+
+Output is rendered as Mermaid syntax (copy into any Mermaid viewer) or PNG if `@mermaid-js/mermaid-cli` is installed.
+
+---
+
+## 📄 PDF & Excel Generation
+
+The AI can use built-in tools to generate files:
+
+```
+generate a PDF report of this sprint summary
+generate an Excel spreadsheet with these metrics
+```
+
+Files are saved to your working directory.
+
+---
+
+## 🤖 Sub-agent Orchestration
+
+Break complex tasks into parallel sub-agents:
+
+```bash
+/plan "refactor the authentication module, add tests, and update docs"
+
+# Output:
+# Agent 1: Refactor auth module
+# Agent 2: Write unit tests
+# Agent 3: Update documentation
+```
+
+```bash
+/agents list               # see all built-in roles
+/agents run reviewer "check src/auth.ts for security issues"
+```
+
+**Built-in roles:** architect, reviewer, debugger, tester, documenter, refactorer, security-auditor, performance-optimizer
+
+---
+
+## 🌐 REST API Server
+
+Run knowcap-code as a background service:
+
+```bash
+kcc serve --port 3333
+
+# POST /chat
+curl -X POST http://localhost:3333/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "write a Go HTTP server", "provider": "groq"}'
+
+# GET /health
+curl http://localhost:3333/health
+
+# GET /models
+curl http://localhost:3333/models
+```
+
+Responses are streaming JSON by default.
+
+---
+
+## 🔌 Plugin / Extension System (Skills)
+
+Skills are markdown + YAML files that give the AI specialized instructions.
+
+**List built-in skills:**
+
+```bash
+/skills list
+# debug, docker, git-workflow, github, npm, ...
+```
+
+**Load a skill:**
+
+```bash
+/skills add docker
+# Now the AI knows all docker commands and best practices
+```
+
+**Create a custom skill** at `~/.knowcap-code/skills/my-skill/SKILL.md`:
 
 ```markdown
----
-name: supabase
-description: "Supabase database operations, RLS policies, edge functions, and auth."
----
-
-# Supabase Skill
+# My Skill
 
 ## When to Use
-- Database queries, migrations, or schema changes
-- RLS (Row Level Security) policies
-- Supabase Auth, Edge Functions, Storage
+Use this skill when working with Kubernetes deployments.
 
 ## Instructions
-1. Use the Supabase client: `import { supabase } from '@/lib/supabase'`
-2. Always use parameterized queries, never string concat
-3. Check RLS policies when queries return empty unexpectedly
-...
+Always check resource limits. Use Helm for complex deployments.
 ```
 
-### Skill Sources
-
-Skills are loaded from (later sources override earlier):
-1. `dist/skills/builtins/` — Built-in skills (ship with knowcap-code)
-2. `<project>/skills/` — Project-specific skills (commit these!)
-3. `~/.knowcap-code/skills/` — Personal skills (all projects)
+Then: `/skills add my-skill`
 
 ---
 
-## Token Tracking
+## 🔗 MCP (Model Context Protocol)
 
-knowcap-code tracks token usage and cost per response and for the full session.
-
-### Per-Response Footer
-
-```
-[groq/llama-3.3-70b-versatile · 1,234 in / 567 out · free]
-[anthropic/claude-3-5-haiku · 2,341 in / 891 out · $0.0102]
-```
-
-### `/cost` Command
-
-```
-  Token Usage & Cost
-  ────────────────────────────────────────
-  Total cost:            $0.55
-  Total duration (API):  6m 19.7s
-  Total duration (wall): 6h 33m 10.2s
-  Total tokens:          45,231 in / 12,847 out
-  Turns:                 23
-
-  By model:
-    anthropic/claude-3-5-haiku-20241022          43,210 in / 12,100 out · $0.52 (20 calls)
-    groq/llama-3.3-70b-versatile                  2,021 in / 747 out · free (3 calls)
-```
-
-### Budget Alerts
-
-```bash
-# Set a session budget
-› /budget 1.00
-✓ Budget set to $1.00 per session
-
-# Warning when approaching
-⚠  Approaching budget limit: $0.82 of $1.00 (82%)
-```
-
-### Pricing Table
-
-| Provider | Input (per 1M) | Output (per 1M) |
-|----------|---------------|-----------------|
-| Ollama | FREE | FREE |
-| Groq (free tier) | FREE | FREE |
-| Gemini 2.0 Flash | $0.10 | $0.40 |
-| Gemini 2.5 Flash | $0.15 | $0.60 |
-| Claude Haiku 3.5 | $0.80 | $4.00 |
-| Claude Sonnet 4.6 | $3.00 | $15.00 |
-| GPT-4o Mini | $0.15 | $0.60 |
-| GPT-4o | $2.50 | $10.00 |
-
----
-
-## Tool Registry
-
-All tools are managed through a central registry.
-
-### Built-in Tools
-
-| Category | Tools |
-|----------|-------|
-| 📄 **File** | `read_file`, `write_file`, `edit_file`, `search_files`, `list_files` |
-| ⚡ **Shell** | `run_command` |
-| 🌿 **Git** | `git_status`, `git_diff`, `git_commit`, `git_log` |
-| 🧠 **Memory** | `memory_search`, `memory_save` |
-| 🔌 **MCP** | Auto-registered from MCP servers |
-
-### `/tools` Output
-
-```
-🔧 Tool Registry
-────────────────
-
-  📄 File Tools
-  ✓ read_file              Read the contents of a file...
-  ✓ write_file             Create or overwrite a file...
-  ✓ edit_file              Edit a file with precise replacement...
-
-  ⚡ Shell Tools
-  ✓ run_command            Execute a shell command...
-
-  🌿 Git Tools
-  ✓ git_status             Show git status...
-```
-
-### Enable / Disable Tools
-
-```bash
-› /tools disable run_command    # Restrict shell access
-✗ Disabled: run_command
-
-› /tools enable run_command     # Re-enable
-✓ Enabled: run_command
-```
-
----
-
-## OpenClaw Integration
-
-Connect knowcap-code to a running [OpenClaw](https://github.com/openclaw/openclaw) gateway to manage your AI agents directly from the CLI.
-
-### Setup
-
-Add to `~/.knowcap-code/config.yaml`:
+Connect to any MCP server for extended capabilities:
 
 ```yaml
+# ~/.knowcap-code/mcp.yaml
+servers:
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "ghp_..."
+```
+
+MCP tools are auto-discovered and registered into the tool registry.
+
+---
+
+## 🔌 OpenClaw Integration
+
+Delegate tasks to OpenClaw agents:
+
+```bash
+# In settings.yaml:
 openclaw:
   url: "http://localhost:18789"
-  token: "your-gateway-token"  # optional if auth is disabled
+  token: "your-token"
 ```
-
-Or set via config command:
 
 ```bash
-› /config set openclaw.url http://localhost:18789
-› /config set openclaw.token your-token
+/openclaw send "research the latest TypeScript 5.5 features"
 ```
-
-### `/openclaw status`
-
-```
-🤖 OpenClaw Gateway
-─────────────────────────────────
-
-  Gateway:  ✅ running  http://localhost:18789
-  Version:  2026.3.8
-  HTTP API: ✓ reachable
-
-  Agents: 3 online / 4 total
-
-  🟢 main              · claude-sonnet-4-6 (2 sessions) · 5m ago
-  🟢 knowcap-team      · claude-sonnet-4-6 (1 session) · 12m ago
-  🟢 bilal             · groq/llama-3.3-70b (0 sessions) · 3h ago
-  🔴 wiso              (0 sessions) · 2d ago
-```
-
-### Startup Banner (when configured)
-
-```
-🤖 OpenClaw: http://localhost:18789 — 4 agents (3 online)
-```
-
-### API
-
-The client uses OpenClaw's `/tools/invoke` HTTP endpoint to call tools:
-- `sessions_list` — list sessions
-- `sessions_history` — get transcripts
-- `sessions_send` — message an agent
 
 ---
 
-## MCP (Model Context Protocol)
+## 🎤 Whisper (Voice Transcription)
 
-Connect external tools and services via MCP servers.
-
-### Configuration
-
-Add to `~/.knowcap-code/config.yaml`:
-
-```yaml
-mcp:
-  servers:
-    github:
-      command: npx
-      args: ["-y", "@modelcontextprotocol/server-github"]
-      env:
-        GITHUB_PERSONAL_ACCESS_TOKEN: "your-pat"
-    
-    supabase:
-      command: npx
-      args: ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref=your-ref"]
-    
-    filesystem:
-      command: npx
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allow"]
-```
-
-MCP tools are automatically registered in the tool registry and available to the AI.
-
----
-
-## Whisper Transcription
-
-Transcribe audio/video files directly from the CLI.
-
-### Setup
-
-**Option A: Groq Whisper (free, no install)**
+Transcribe voice files using local Whisper or Groq's Whisper API:
 
 ```bash
-export GROQ_API_KEY=your-key
-kcc transcribe meeting.mp4
+kcc --voice meeting.mp3             # transcribe + summarize
+kcc --voice recording.m4a           # any audio format
+/voice                              # live mic (requires whisper CLI)
 ```
 
-**Option B: Local Whisper (requires Python)**
+**Setup Whisper:**
 
 ```bash
+# macOS
+brew install whisper.cpp
+
+# Linux / Windows
 pip install openai-whisper
-kcc transcribe meeting.mp4
+
+# Or use Groq's free Whisper API (no install needed):
+export GROQ_API_KEY="gsk_..."
 ```
-
-### Usage
-
-```bash
-# Transcribe a file
-› /transcribe recording.m4a
-
-# From command line
-kcc --transcribe ./meeting.mp4
-```
-
-Supports: MP3, WAV, M4A, OGG, WebM, MP4, MKV
 
 ---
 
-## Project Memory File (KNOWCAP.md)
-
-Create a `KNOWCAP.md` or `CLAUDE.md` in your project root for AI context:
+## 📊 Token Tracking
 
 ```bash
-› /init
-✓ Created KNOWCAP.md
+/tokens                    # current session stats
+/budget 100000             # set token budget (warns when near limit)
 ```
 
-This file is automatically loaded at session start and injected into the system prompt. Commit it to share context with your team.
+Token usage is tracked per-session and displayed in the status bar.
 
 ---
 
-## Configuration
+## 📜 Persistent History
 
-Config file: `~/.knowcap-code/config.yaml` (Unix) / `%APPDATA%\knowcap-code\config.yaml` (Windows)
+Sessions are auto-saved to `~/.knowcap-code/history/`:
+
+```bash
+/history                   # list recent sessions
+/history load abc123       # resume session by ID
+/history export            # export as markdown
+```
+
+---
+
+## ⚙️ Configuration
+
+### Global settings (`~/.knowcap-code/settings.yaml`)
 
 ```yaml
 defaultProvider: groq
-defaultModel: llama-3.3-70b-versatile
+budget: 500000
 
 providers:
-  groq:
-    apiKey: gsk_xxx
-    model: llama-3.3-70b-versatile
-  anthropic:
-    apiKey: sk-ant-xxx
-    model: claude-3-5-haiku-20241022
   ollama:
     baseUrl: http://localhost:11434
-    model: qwen2.5-coder:7b
-
-ui:
-  color: true
-  markdown: true
-  streamingOutput: true
-
-whisper:
-  model: base        # tiny | base | small | medium | large
+    model: llama3.1
+  groq:
+    apiKey: gsk_...
+    model: llama-3.3-70b-versatile
+  google:
+    apiKey: AIza...
+    model: gemini-2.0-flash
+  anthropic:
+    apiKey: sk-ant-...
+    model: claude-3-5-sonnet-20241022
+  openai:
+    apiKey: sk-...
+    model: gpt-4o
 
 openclaw:
   url: http://localhost:18789
-  token: your-token  # optional
-
-budget: 5.00         # USD session budget limit
+  token: your-token
 ```
+
+### Project config (`./KNOWCAP.md`)
+
+```markdown
+# My Project
+
+## Stack
+- TypeScript, React, Node.js
+- PostgreSQL via Supabase
+
+## Conventions
+- Use named exports
+- Tests in __tests__/ folders
+- ESLint + Prettier enforced
+```
+
+The AI reads this file at startup and follows your project conventions.
 
 ---
 
-## Platform Support
+## 🖥️ Platform Support
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| **macOS** | ✅ Fully supported | Intel + Apple Silicon |
-| **Linux** | ✅ Fully supported | Ubuntu, Debian, Arch, etc. |
-| **Windows** | ✅ Supported | cmd.exe, PowerShell, WSL |
-
-**Platform notes:**
-- Config: `~/.knowcap-code/` on Unix, `%APPDATA%\knowcap-code\` on Windows
-- Shell: `/bin/sh` on Unix, `cmd.exe` on Windows (configurable)
-- All paths use `path.join()` — no hardcoded separators
+| **macOS** (Apple Silicon / Intel) | ✅ Full | All features |
+| **Linux** (Ubuntu, Debian, Fedora, Arch) | ✅ Full | All features |
+| **Windows** (WSL2) | ✅ Full | Recommended via WSL2 |
+| **Windows** (native) | ⚠️ Partial | Voice/Whisper may need manual setup |
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 knowcap-code/
 ├── src/
 │   ├── agent/
-│   │   ├── core.ts          ← Agent loop (tools, streaming, memory injection)
-│   │   ├── tools.ts         ← Built-in tool implementations
-│   │   └── conversation.ts  ← Message history + system prompt builder
+│   │   ├── conversation.ts   # System prompt + message history
+│   │   ├── core.ts           # Agent loop + tool execution
+│   │   └── tools.ts          # File/shell/git tools
+│   ├── agents/
+│   │   └── roles.ts          # Built-in agent role definitions
+│   ├── cli.ts                # REPL + slash command handling
 │   ├── config/
-│   │   ├── settings.ts      ← Config file loading (YAML)
-│   │   └── project.ts       ← KNOWCAP.md / CLAUDE.md project memory
-│   ├── memory/
-│   │   └── index.ts         ← Memory system (MEMORY.md + session logs)
-│   ├── mcp/
-│   │   ├── client.ts        ← MCP stdio client
-│   │   └── config.ts        ← MCP server setup from config
-│   ├── openclaw/
-│   │   └── client.ts        ← OpenClaw gateway HTTP client
-│   ├── providers/
-│   │   ├── index.ts         ← Provider interface + factory
-│   │   ├── anthropic.ts     ← Anthropic Claude
-│   │   ├── google.ts        ← Gemini
-│   │   ├── groq.ts          ← Groq
-│   │   ├── ollama.ts        ← Ollama (local)
-│   │   ├── openai.ts        ← OpenAI
-│   │   └── openrouter.ts    ← OpenRouter
-│   ├── registry/
-│   │   └── index.ts         ← Tool registry (categories, enable/disable)
-│   ├── setup/
-│   │   └── wizard.ts        ← First-run setup + provider auto-detection
-│   ├── skills/
-│   │   ├── index.ts         ← Skills manager (YAML frontmatter, auto-detect)
-│   │   └── builtins/        ← Built-in skills (github, docker, npm, debug, git-workflow)
-│   ├── tracking/
-│   │   └── tokens.ts        ← Token + cost tracking
-│   ├── ui/
-│   │   ├── terminal.ts      ← Banner, colors, spinner, box output
-│   │   └── markdown.ts      ← Markdown rendering for terminal
-│   ├── whisper/
-│   │   └── transcribe.ts    ← Whisper local + Groq API
-│   ├── cli.ts               ← REPL + slash command handler
-│   └── index.ts             ← Entry point + arg parsing
-├── skills/                  ← Project-level custom skills
-├── MEMORY.md                ← Project memory (create with /init)
-└── KNOWCAP.md               ← Project context (create with /init)
+│   │   ├── project.ts        # KNOWCAP.md loader
+│   │   └── settings.ts       # Global settings
+│   ├── diagrams/             # Mermaid + image generation
+│   ├── history/              # Session persistence
+│   ├── mcp/                  # MCP protocol client
+│   ├── memory/               # Project memory (MEMORY.md)
+│   ├── multimodal/           # Image/video/voice input
+│   ├── openclaw/             # OpenClaw agent relay
+│   ├── persona/              # Language/dialect system
+│   ├── profile/              # User identity
+│   ├── providers/            # AI provider adapters
+│   ├── rag/                  # RAG indexing + reranking
+│   ├── registry/             # Tool registry
+│   ├── server/               # REST API server
+│   ├── setup/                # Interactive wizard
+│   ├── skills/               # Plugin skill system
+│   ├── tracking/             # Token tracking
+│   ├── ui/                   # Terminal UI (chalk, markdown)
+│   └── whisper/              # Voice transcription
+└── dist/                     # Compiled JS (after npm run build)
 ```
 
 ---
 
-## License
+## 🤝 Contributing
 
-MIT — see [LICENSE](LICENSE)
+1. Fork the repo: [github.com/Shadysmetools/knowcap-code](https://github.com/Shadysmetools/knowcap-code)
+2. Clone your fork
+3. Create a feature branch: `git checkout -b feat/my-feature`
+4. Make changes, then build: `npm run build`
+5. Test: `node dist/index.js --help`
+6. Commit: `git commit -m "feat: description"`
+7. Push and open a PR
+
+### Adding a new provider
+
+Create `src/providers/myprovider.ts` implementing the `Provider` interface, then register it in `src/providers/index.ts`.
+
+### Adding a new built-in skill
+
+Create `src/skills/builtins/my-skill/SKILL.md` with your skill instructions.
 
 ---
 
-<div align="center">
+## 📋 Changelog
 
-Built with ❤️ by [Knowcap](https://knowcap.ai) · Inspired by [Claude Code](https://claude.ai/code) + [OpenClaw](https://github.com/openclaw/openclaw)
+### v1.0.0
+- Initial release
+- 24 features across 14 modules
+- Persona system: 9 languages/dialects
+- MCP protocol support
+- REST API server
+- Sub-agent orchestration
+- Multimodal (images, video, voice)
+- Agentic RAG with reranking
+- PDF + Excel generation
+- OpenClaw integration
+- Whisper transcription
+- Comprehensive plugin system
 
-</div>
+---
+
+## 📄 License
+
+MIT © [Shadysmetools](https://github.com/Shadysmetools)
+
+---
+
+<p align="center">Made by <a href="https://github.com/Shadysmetools">Shadysmetools</a></p>

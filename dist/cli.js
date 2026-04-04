@@ -56,6 +56,12 @@ const index_3 = require("./skills/index");
 const tokens_1 = require("./tracking/tokens");
 const index_4 = require("./registry/index");
 const client_1 = require("./openclaw/client");
+const index_5 = require("./history/index");
+const index_6 = require("./profile/index");
+const rerank_1 = require("./rag/rerank");
+const roles_1 = require("./agents/roles");
+const index_7 = require("./diagrams/index");
+const index_8 = require("./persona/index");
 async function startCLI(opts = {}) {
     const settings = (0, settings_1.loadSettings)();
     const cwd = opts.cwd || process.cwd();
@@ -77,6 +83,8 @@ async function startCLI(opts = {}) {
     skills.loadAll();
     const tokenTracker = new tokens_1.TokenTracker();
     const registry = (0, index_4.createDefaultRegistry)();
+    const profile = new index_6.ProfileManager();
+    const persona = new index_8.PersonaManager();
     if (mcpClient) {
         const mcpTools = await mcpClient.getTools();
         registry.registerMCPTools(mcpTools);
@@ -93,16 +101,27 @@ async function startCLI(opts = {}) {
             token: settings.openclaw.token,
         });
     }
-    // ── System prompt ─────────────────────────────────────────────────────────
-    const systemPrompt = (0, conversation_1.buildSystemPrompt)({
+    // ── System prompt builder (re-used on provider/persona change) ────────────
+    const buildSystem = () => (0, conversation_1.buildSystemPrompt)({
         cwd,
         projectMemory: projectConfig.memoryContent,
         memoryContext: memory.getSystemContext(),
+        profileContext: profile.buildSystemBlock(cwd),
+        personaContext: persona.buildSystemBlock(),
     });
-    let conversation = (0, conversation_1.createConversation)(systemPrompt);
+    // ── History ───────────────────────────────────────────────────────────────
+    const history = new index_5.HistoryManager(providerName, provider.model, cwd);
+    let conversation = (0, conversation_1.createConversation)(buildSystem());
     // ── Banner ────────────────────────────────────────────────────────────────
     if (!opts.noColor) {
         (0, terminal_1.printBanner)();
+    }
+    // 👤 Profile greeting
+    if (!profile.isEmpty()) {
+        const name = profile.getName();
+        const role = profile.getRole();
+        const greeting = name ? `👤 Hello, ${chalk_1.default.bold(name)}${role ? chalk_1.default.dim(` (${role})`) : ''}!` : '👤 Profile loaded';
+        console.log(chalk_1.default.cyan(greeting));
     }
     if (projectConfig.memoryFile) {
         (0, terminal_1.printInfo)(`📋 Loaded project memory: ${path.relative(cwd, projectConfig.memoryFile)}`);
@@ -113,7 +132,13 @@ async function startCLI(opts = {}) {
     }
     const skillList = skills.list();
     if (skillList.length > 0) {
-        (0, terminal_1.printInfo)(`🎯 ${skillList.length} skills available (${skillList.map(s => s.name).slice(0, 4).join(', ')}${skillList.length > 4 ? '...' : ''})`);
+        (0, terminal_1.printInfo)(`🎯 ${skillList.length} skill${skillList.length !== 1 ? 's' : ''} available (${skillList.map(s => s.name).slice(0, 4).join(', ')}${skillList.length > 4 ? '...' : ''})`);
+    }
+    // 🎭 Show active persona if not default
+    if (!persona.isDefault()) {
+        const p = persona.getActive();
+        const flag = p.flag ?? '🎭';
+        console.log(chalk_1.default.magenta(`${flag}  Persona: ${p.name}${p.nativeName ? ` (${p.nativeName})` : ''}`));
     }
     // ── OpenClaw agents count (non-blocking) ──────────────────────────────────
     if (openclawClient) {
@@ -130,7 +155,9 @@ async function startCLI(opts = {}) {
         (0, terminal_1.printError)(`Provider "${providerName}" is not available. Check your API key or start Ollama.`);
         (0, terminal_1.printInfo)(`Tip: Run "ollama pull qwen2.5-coder:7b" for a free local model.`);
     }
-    console.log(chalk_1.default.dim(`\nProvider: ${providerName}/${provider.model} | Type /help for commands\n`));
+    // Status bar: provider · persona
+    const personaTag = persona.isDefault() ? '' : chalk_1.default.magenta(` · ${persona.getActive().flag ?? '🎭'} ${persona.getActive().id}`);
+    console.log(chalk_1.default.dim(`\nProvider: ${providerName}/${provider.model}${personaTag} | Type /help for commands\n`));
     // ── One-shot mode ─────────────────────────────────────────────────────────
     if (opts.oneShot) {
         const result = await (0, core_1.runAgent)(provider, conversation, opts.oneShot, {
@@ -159,6 +186,7 @@ async function startCLI(opts = {}) {
             await handleSlashCommand(input, {
                 settings, conversation, provider, providerName, cwd, mcpClient, rl,
                 memory, skills, tokenTracker, registry, openclawClient,
+                history, profile, persona,
                 onProviderChange: (newProvider, newName) => {
                     provider = newProvider;
                     providerName = newName;
@@ -166,17 +194,29 @@ async function startCLI(opts = {}) {
                 onConversationReset: (newConv) => {
                     conversation = newConv;
                 },
+                onSystemUpdate: () => {
+                    // Rebuild system prompt when persona/profile changes
+                    const msgs = conversation.messages;
+                    const sysIdx = msgs.findIndex(m => m.role === 'system');
+                    if (sysIdx >= 0)
+                        msgs[sysIdx].content = buildSystem();
+                },
             });
             rl.prompt();
             return;
         }
         // Regular message → run agent
+        // Save to history before + after
+        history.addMessage({ role: 'user', content: input });
         try {
             console.log();
             console.log(chalk_1.default.green('AI  › '));
-            await (0, core_1.runAgent)(provider, conversation, input, {
+            const result = await (0, core_1.runAgent)(provider, conversation, input, {
                 cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
             });
+            if (result.content) {
+                history.addMessage({ role: 'assistant', content: result.content });
+            }
         }
         catch (err) {
             (0, terminal_1.printError)(err.message);
@@ -184,6 +224,7 @@ async function startCLI(opts = {}) {
         rl.prompt();
     });
     rl.on('close', () => {
+        history.save();
         console.log(chalk_1.default.dim('\nGoodbye! 👋'));
         process.exit(0);
     });
@@ -627,6 +668,513 @@ async function handleSlashCommand(input, ctx) {
             const filePath = initProjectMemory(ctx.cwd);
             (0, terminal_1.printSuccess)(`Created ${path.relative(ctx.cwd, filePath)}`);
             (0, terminal_1.printInfo)('Edit it to add project context for the AI.');
+            break;
+        }
+        // ── Persona ───────────────────────────────────────────────────────────────
+        case 'persona': {
+            const sub = args[0]?.toLowerCase();
+            if (!sub || sub === 'list') {
+                (0, terminal_1.printSectionHeader)('🎭 Personas');
+                console.log(ctx.persona.formatList());
+            }
+            else if (sub === 'set') {
+                const query = args.slice(1).join(' ');
+                if (!query) {
+                    (0, terminal_1.printError)('Usage: /persona set <id>  e.g. /persona set franco');
+                    break;
+                }
+                const resolved = (0, index_8.resolvePersonaId)(query);
+                const p = ctx.persona.setActive(resolved);
+                if (!p) {
+                    (0, terminal_1.printError)(`Persona not found: "${query}". Run /persona list to see options.`);
+                    break;
+                }
+                const flag = p.flag ?? '🎭';
+                console.log(`\n${chalk_1.default.magenta(`${flag}  Persona set: `)}${chalk_1.default.bold(p.name)}${p.nativeName ? chalk_1.default.dim(` (${p.nativeName})`) : ''}`);
+                if (p.id === 'franco') {
+                    console.log(chalk_1.default.dim('  Numbers: 3=ع 7=ح 2=أ 5=خ 8=غ 6=ط 9=ق'));
+                }
+                ctx.onSystemUpdate();
+                (0, terminal_1.printSuccess)(`AI will now respond in ${p.name}`);
+            }
+            else if (sub === 'reset' || sub === 'clear') {
+                ctx.persona.setActive('english');
+                ctx.onSystemUpdate();
+                (0, terminal_1.printSuccess)('Persona reset to English (default)');
+            }
+            else if (sub === 'create') {
+                // /persona create <id> <name> <lang> [system-prompt...]
+                const id = args[1];
+                const name = args[2];
+                const lang = args[3];
+                const prompt = args.slice(4).join(' ');
+                if (!id || !name || !lang) {
+                    (0, terminal_1.printError)('Usage: /persona create <id> <name> <lang-code> [system-prompt]');
+                    (0, terminal_1.printInfo)('Example: /persona create hinglish "Hindi-English" hi-en Respond in Hinglish mix.');
+                    break;
+                }
+                const p = ctx.persona.createCustom(id, name, lang, prompt || `Respond in ${name} language.`);
+                (0, terminal_1.printSuccess)(`Created custom persona: ${p.name} (${p.id})`);
+                (0, terminal_1.printInfo)(`Use: /persona set ${p.id}`);
+            }
+            else if (sub === 'delete') {
+                const id = args[1];
+                if (!id) {
+                    (0, terminal_1.printError)('Usage: /persona delete <id>');
+                    break;
+                }
+                if (ctx.persona.deleteCustom(id)) {
+                    (0, terminal_1.printSuccess)(`Deleted persona: ${id}`);
+                    ctx.onSystemUpdate();
+                }
+                else {
+                    (0, terminal_1.printError)(`Cannot delete "${id}" — not found or it's a built-in.`);
+                }
+            }
+            else if (sub === 'info') {
+                const query = args.slice(1).join(' ');
+                const resolved = (0, index_8.resolvePersonaId)(query || ctx.persona.getActive().id);
+                const p = ctx.persona.find(resolved);
+                if (!p) {
+                    (0, terminal_1.printError)(`Persona not found: ${query}`);
+                    break;
+                }
+                (0, terminal_1.printSectionHeader)(`${p.flag ?? '🎭'} ${p.name}`);
+                console.log(`  ID: ${p.id}  |  Language: ${p.language}  |  Source: ${p.source}`);
+                if (p.nativeName)
+                    console.log(`  Native name: ${p.nativeName}`);
+                console.log(`\n  System prompt:\n`);
+                p.systemPrompt.split('\n').slice(0, 10).forEach(l => console.log(`    ${chalk_1.default.dim(l)}`));
+                if (p.systemPrompt.split('\n').length > 10)
+                    console.log(chalk_1.default.dim(`    … (${p.systemPrompt.split('\n').length - 10} more lines)`));
+            }
+            else {
+                (0, terminal_1.printError)(`Unknown /persona subcommand: ${sub}. Try: list, set, reset, create, delete, info`);
+            }
+            break;
+        }
+        // ── Lang shortcut ─────────────────────────────────────────────────────────
+        case 'lang': {
+            const query = args.join(' ');
+            if (!query) {
+                const p = ctx.persona.getActive();
+                console.log(`\n  Current language: ${p.flag ?? '🎭'} ${chalk_1.default.bold(p.name)} (${p.language})`);
+                console.log(chalk_1.default.dim('  Use /lang <code>  e.g. /lang franco  /lang egyptian  /lang fr'));
+                break;
+            }
+            const resolved = (0, index_8.resolvePersonaId)(query);
+            const p = ctx.persona.setActive(resolved);
+            if (!p) {
+                (0, terminal_1.printError)(`Language/persona not found: "${query}". Run /persona list to see options.`);
+                break;
+            }
+            ctx.onSystemUpdate();
+            console.log(`\n${p.flag ?? '🎭'} ${chalk_1.default.bold(`Language: ${p.name}`)}${p.nativeName ? chalk_1.default.dim(` (${p.nativeName})`) : ''}`);
+            break;
+        }
+        // ── History ───────────────────────────────────────────────────────────────
+        case 'history': {
+            const sub = args[0]?.toLowerCase();
+            if (!sub || sub === 'list') {
+                const days = parseInt(args[1] || '30', 10);
+                const sessions = index_5.HistoryManager.list(isNaN(days) ? 30 : days);
+                if (sessions.length === 0) {
+                    (0, terminal_1.printInfo)('No saved sessions found.');
+                    break;
+                }
+                (0, terminal_1.printSectionHeader)(`📜 Session History (last ${days || 30} days)`);
+                console.log('');
+                for (const s of sessions.slice(0, 25)) {
+                    const age = (0, index_5.formatRelativeTime)(s.updatedAt);
+                    const msgs = chalk_1.default.dim(`${s.messageCount} msgs`);
+                    const prov = chalk_1.default.dim(`${s.provider}/${s.model}`);
+                    const title = s.title.length > 55 ? s.title.slice(0, 52) + '…' : s.title;
+                    console.log(`  ${chalk_1.default.cyan(s.id)}  ${chalk_1.default.bold(title)}`);
+                    console.log(`            ${chalk_1.default.dim(age)} · ${msgs} · ${prov}`);
+                }
+                console.log(`\n  ${chalk_1.default.dim('Use: /history load <id>  |  /history export <id>  |  /history search <query>')}`);
+            }
+            else if (sub === 'load' || sub === 'resume') {
+                const id = args[1];
+                if (!id) {
+                    (0, terminal_1.printError)('Usage: /history load <session-id>');
+                    break;
+                }
+                const record = index_5.HistoryManager.load(id);
+                if (!record) {
+                    (0, terminal_1.printError)(`Session not found: ${id}`);
+                    break;
+                }
+                // Rebuild conversation from saved messages
+                const sysMsg = ctx.conversation.messages.find(m => m.role === 'system');
+                ctx.conversation.messages.length = 0;
+                if (sysMsg)
+                    ctx.conversation.messages.push(sysMsg);
+                for (const m of record.messages) {
+                    if (m.role !== 'system')
+                        ctx.conversation.messages.push(m);
+                }
+                (0, terminal_1.printSuccess)(`Loaded session: ${record.title}`);
+                (0, terminal_1.printInfo)(`${record.messageCount} messages restored · ${record.provider}/${record.model}`);
+            }
+            else if (sub === 'export') {
+                const id = args[1] ?? ctx.history.getCurrentId();
+                const record = index_5.HistoryManager.load(id);
+                if (!record) {
+                    (0, terminal_1.printError)(`Session not found: ${id}`);
+                    break;
+                }
+                const md = index_5.HistoryManager.exportMarkdown(record);
+                const outFile = `session-${id}.md`;
+                const { writeFileSync } = await Promise.resolve().then(() => __importStar(require('fs')));
+                writeFileSync(path.resolve(ctx.cwd, outFile), md, 'utf-8');
+                (0, terminal_1.printSuccess)(`Exported to: ${outFile}`);
+            }
+            else if (sub === 'search') {
+                const query = args.slice(1).join(' ');
+                if (!query) {
+                    (0, terminal_1.printError)('Usage: /history search <query>');
+                    break;
+                }
+                const results = index_5.HistoryManager.search(query);
+                if (results.length === 0) {
+                    (0, terminal_1.printInfo)(`No sessions found matching: "${query}"`);
+                    break;
+                }
+                (0, terminal_1.printSectionHeader)(`🔍 History Search: "${query}"`);
+                for (const r of results) {
+                    const age = (0, index_5.formatRelativeTime)(r.session.updatedAt);
+                    console.log(`\n  ${chalk_1.default.cyan(r.session.id)}  ${chalk_1.default.bold(r.session.title)}`);
+                    console.log(`  ${chalk_1.default.dim(age)} · ${chalk_1.default.dim(r.snippet)}`);
+                }
+            }
+            else if (sub === 'delete') {
+                const id = args[1];
+                if (!id) {
+                    (0, terminal_1.printError)('Usage: /history delete <session-id>');
+                    break;
+                }
+                if (index_5.HistoryManager.delete(id)) {
+                    (0, terminal_1.printSuccess)(`Deleted session: ${id}`);
+                }
+                else {
+                    (0, terminal_1.printError)(`Session not found: ${id}`);
+                }
+            }
+            else if (sub === 'current') {
+                const id = ctx.history.getCurrentId();
+                const title = ctx.history.getCurrentTitle();
+                console.log(`\n  Current session: ${chalk_1.default.cyan(id)}`);
+                console.log(`  Title: ${chalk_1.default.bold(title)}`);
+            }
+            else {
+                (0, terminal_1.printError)(`Unknown /history subcommand: ${sub}. Try: list, load, export, search, delete, current`);
+            }
+            break;
+        }
+        // ── Profile ───────────────────────────────────────────────────────────────
+        case 'profile': {
+            const sub = args[0]?.toLowerCase();
+            if (!sub || sub === 'show') {
+                (0, terminal_1.printSectionHeader)('👤 Your Profile');
+                console.log(ctx.profile.format());
+            }
+            else if (sub === 'set') {
+                // /profile set name "Shady"  OR  /profile set pref.language TypeScript
+                const key = args[1];
+                const value = args.slice(2).join(' ');
+                if (!key || !value) {
+                    (0, terminal_1.printError)('Usage: /profile set <field> <value>');
+                    (0, terminal_1.printInfo)('Fields: name, role, company, email, custom_instructions');
+                    (0, terminal_1.printInfo)('Prefs:  pref.language, pref.style, pref.expertise, pref.review_strictness');
+                    break;
+                }
+                if (key.startsWith('pref.')) {
+                    const prefKey = key.slice(5);
+                    ctx.profile.setPreference(prefKey, value);
+                    (0, terminal_1.printSuccess)(`Preference set: ${prefKey} = ${value}`);
+                }
+                else {
+                    ctx.profile.set({ [key]: value });
+                    (0, terminal_1.printSuccess)(`Profile updated: ${key} = ${value}`);
+                }
+                ctx.onSystemUpdate();
+            }
+            else if (sub === 'add-project') {
+                const name = args[1];
+                const stack = args.slice(2).join(' ');
+                if (!name) {
+                    (0, terminal_1.printError)('Usage: /profile add-project <name> [stack]');
+                    break;
+                }
+                ctx.profile.addProject({ name, path: ctx.cwd, stack: stack || undefined });
+                (0, terminal_1.printSuccess)(`Added project: ${name}${stack ? ` (${stack})` : ''}`);
+                ctx.onSystemUpdate();
+            }
+            else if (sub === 'edit') {
+                const filePath = index_6.ProfileManager.profilePath();
+                (0, terminal_1.printInfo)(`Profile file: ${filePath}`);
+                try {
+                    child_process.execSync(`${process.env.EDITOR || 'nano'} "${filePath}"`, { stdio: 'inherit' });
+                    ctx.onSystemUpdate();
+                    (0, terminal_1.printSuccess)('Profile saved.');
+                }
+                catch {
+                    (0, terminal_1.printInfo)('Open the file manually to edit it.');
+                }
+            }
+            else {
+                (0, terminal_1.printError)(`Unknown /profile subcommand: ${sub}. Try: show, set, add-project, edit`);
+            }
+            break;
+        }
+        // ── Plan ──────────────────────────────────────────────────────────────────
+        case 'plan': {
+            const task = args.join(' ');
+            if (!task) {
+                (0, terminal_1.printError)('Usage: /plan <what to build>');
+                (0, terminal_1.printInfo)('Example: /plan Build a user authentication system with JWT');
+                break;
+            }
+            const spinner = (0, terminal_1.createSpinner)('Generating execution plan…');
+            spinner.start();
+            const planPrompt = `You are a senior technical planner. Create a detailed, step-by-step execution plan for:
+
+"${task}"
+
+Output format (STRICTLY follow this):
+
+## Plan: [Short Title]
+**Summary:** [1-2 sentences describing what will be built]
+**Complexity:** High | Medium | Low
+**Estimated steps:** [N]
+
+### Steps:
+1. 📐 [architect] [What the architect does] → [file(s) or area]
+2. 💻 [coder] [What to implement] → [file(s)]
+3. 💻 [coder] [Next implementation] → [file(s)]
+4. 🧪 [tester] [What tests to write] → [test file(s)]
+5. 🔍 [reviewer] [What to review] → [file(s)]
+6. 📝 [documenter] [What docs to write] → [file]
+
+### Risks:
+- [Key risk or open question]
+
+Be specific about filenames and actions. Max 8 steps.`;
+            try {
+                spinner.stop();
+                console.log('');
+                const planRole = roles_1.BUILTIN_ROLES['planner'];
+                const planConv = (0, conversation_1.createConversation)(planRole.systemPrompt);
+                let planText = '';
+                await (0, core_1.runAgent)(ctx.provider, planConv, planPrompt, {
+                    cwd: ctx.cwd, stream: false, mcpClient: ctx.mcpClient,
+                    registry: ctx.registry, memory: ctx.memory, skills: ctx.skills, tokenTracker: ctx.tokenTracker,
+                    onToken: (t) => { planText += t; },
+                });
+                // Display the plan in a formatted box
+                (0, terminal_1.printSectionHeader)('🎯 Execution Plan');
+                console.log('');
+                const lines = planText.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('## Plan:')) {
+                        console.log(chalk_1.default.bold.cyan(line));
+                    }
+                    else if (line.startsWith('**Summary:**')) {
+                        console.log(chalk_1.default.white(line));
+                    }
+                    else if (line.startsWith('**Complexity:**')) {
+                        const lvl = line.includes('High') ? chalk_1.default.red(line) : line.includes('Medium') ? chalk_1.default.yellow(line) : chalk_1.default.green(line);
+                        console.log(lvl);
+                    }
+                    else if (/^\d+\.\s/.test(line)) {
+                        console.log(chalk_1.default.cyan('  ' + line));
+                    }
+                    else if (line.startsWith('### Risks')) {
+                        console.log('\n' + chalk_1.default.bold.yellow(line));
+                    }
+                    else if (line.startsWith('- ')) {
+                        console.log(chalk_1.default.yellow('  ' + line));
+                    }
+                    else if (line.trim()) {
+                        console.log(chalk_1.default.dim('  ' + line));
+                    }
+                }
+                console.log('');
+                console.log(chalk_1.default.dim('  Execute this plan? Just say "go" or ask me to start with step 1.'));
+                console.log('');
+                // Also save plan to history
+                ctx.history.addMessage({ role: 'user', content: `/plan ${task}` });
+                ctx.history.addMessage({ role: 'assistant', content: planText });
+            }
+            catch (err) {
+                spinner.stop();
+                (0, terminal_1.printError)(`Plan generation failed: ${err.message}`);
+            }
+            break;
+        }
+        // ── Agents ────────────────────────────────────────────────────────────────
+        case 'agents': {
+            const sub = args[0]?.toLowerCase();
+            if (!sub || sub === 'list') {
+                (0, terminal_1.printSectionHeader)('🤖 Available Agent Roles');
+                console.log('');
+                for (const role of (0, roles_1.listRoles)()) {
+                    console.log(`  ${role.icon}  ${chalk_1.default.bold(role.id.padEnd(14))} ${chalk_1.default.dim(role.description)}`);
+                }
+                console.log(`\n  ${chalk_1.default.dim('Use: /plan <task> — orchestrate agents on a task')}`);
+                console.log('');
+            }
+            else if (sub === 'info') {
+                const roleId = args[1];
+                if (!roleId) {
+                    (0, terminal_1.printError)('Usage: /agents info <role-id>');
+                    break;
+                }
+                const role = roles_1.BUILTIN_ROLES[roleId];
+                if (!role) {
+                    (0, terminal_1.printError)(`Role not found: ${roleId}. Run /agents list`);
+                    break;
+                }
+                (0, terminal_1.printSectionHeader)(`${role.icon} Agent Role: ${role.name}`);
+                console.log(`\n  ${role.description}`);
+                if (role.allowedTools?.length) {
+                    console.log(`\n  Allowed tools: ${role.allowedTools.join(', ')}`);
+                }
+                console.log(`\n  System prompt preview:\n`);
+                role.systemPrompt.split('\n').slice(0, 6).forEach(l => console.log(`    ${chalk_1.default.dim(l)}`));
+            }
+            else {
+                (0, terminal_1.printError)(`Unknown /agents subcommand: ${sub}. Try: list, info <role>`);
+            }
+            break;
+        }
+        // ── RAG ───────────────────────────────────────────────────────────────────
+        case 'rag': {
+            const sub = args[0]?.toLowerCase();
+            if (!sub || sub === 'search') {
+                const query = args.slice(1).join(' ');
+                if (!query) {
+                    (0, terminal_1.printError)('Usage: /rag search <query>');
+                    break;
+                }
+                (0, terminal_1.printSectionHeader)(`🔍 RAG Search: "${query}"`);
+                const spinner2 = (0, terminal_1.createSpinner)('Searching codebase…');
+                spinner2.start();
+                const results = (0, rerank_1.ragSearch)(query, ctx.cwd, { topK: 10 });
+                spinner2.stop(`Found ${results.length} results`);
+                if (results.length === 0) {
+                    (0, terminal_1.printInfo)('No results found.');
+                    break;
+                }
+                console.log('');
+                for (const r of results) {
+                    const score = chalk_1.default.dim(`(${(r.score * 100).toFixed(0)}%)`);
+                    console.log(`  ${chalk_1.default.magenta(r.relativePath)}${chalk_1.default.dim(':' + r.line)}  ${score}`);
+                    if (r.content.trim()) {
+                        console.log(`    ${chalk_1.default.dim(r.content.trim().slice(0, 100))}`);
+                    }
+                }
+                console.log('');
+            }
+            else if (sub === 'status') {
+                (0, terminal_1.printSectionHeader)('📚 RAG Status');
+                (0, terminal_1.printInfo)(`Working directory: ${ctx.cwd}`);
+                (0, terminal_1.printInfo)('Keyword + pattern search (RRF) — no index required');
+                (0, terminal_1.printInfo)('Run /rag search <query> to search your codebase');
+            }
+            else {
+                (0, terminal_1.printError)(`Unknown /rag subcommand: ${sub}. Try: search <query>, status`);
+            }
+            break;
+        }
+        // ── Diagram ───────────────────────────────────────────────────────────────
+        case 'diagram':
+        case 'architecture': {
+            const desc = args.join(' ');
+            if (!desc) {
+                (0, terminal_1.printError)(`Usage: /${cmd} <description>`);
+                (0, terminal_1.printInfo)('Examples:');
+                (0, terminal_1.printInfo)('  /diagram auth flow with JWT and refresh tokens');
+                (0, terminal_1.printInfo)('  /architecture microservices app with API gateway');
+                break;
+            }
+            const diagramType = cmd === 'architecture' ? 'architecture' : (0, index_7.detectDiagramType)(desc);
+            const spinner3 = (0, terminal_1.createSpinner)(`Generating ${diagramType} diagram…`);
+            spinner3.start();
+            try {
+                // Ask the AI to produce Mermaid code
+                const diagramPrompt = (0, index_7.buildDiagramPrompt)(desc, diagramType);
+                const diagramConv = (0, conversation_1.createConversation)('You are a technical diagram specialist. Output ONLY Mermaid code — no explanation, no markdown fences.');
+                let mermaidCode = '';
+                await (0, core_1.runAgent)(ctx.provider, diagramConv, diagramPrompt, {
+                    cwd: ctx.cwd, stream: false, mcpClient: ctx.mcpClient,
+                    registry: ctx.registry, memory: ctx.memory, skills: ctx.skills,
+                    tokenTracker: ctx.tokenTracker,
+                    onToken: (t) => { mermaidCode += t; },
+                });
+                // Strip markdown fences if AI included them
+                mermaidCode = mermaidCode
+                    .replace(/^```mermaid\s*/i, '').replace(/^```\s*/i, '')
+                    .replace(/```\s*$/, '').trim();
+                spinner3.stop('Mermaid code generated');
+                // Show preview
+                (0, terminal_1.printSectionHeader)(`🎨 ${diagramType.charAt(0).toUpperCase() + diagramType.slice(1)} Diagram`);
+                console.log('');
+                console.log(chalk_1.default.cyan('┌─ Mermaid code ─────────────────────────────────'));
+                (0, index_7.mermaidPreview)(mermaidCode).split('\n').forEach(l => console.log(chalk_1.default.cyan('│ ') + chalk_1.default.dim(l)));
+                console.log(chalk_1.default.cyan('└────────────────────────────────────────────────'));
+                console.log('');
+                // Render to file
+                const safeName = desc.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const outFile = path.resolve(ctx.cwd, `${safeName}.png`);
+                const renderSpinner = (0, terminal_1.createSpinner)('Rendering PNG with Mermaid CLI…');
+                renderSpinner.start();
+                const result = await (0, index_7.generateDiagram)({
+                    type: diagramType,
+                    code: mermaidCode,
+                    outputPath: outFile,
+                    format: 'png',
+                });
+                const kb = (result.sizeBytes / 1024).toFixed(1);
+                renderSpinner.stop(`Saved: ${path.relative(ctx.cwd, result.outputPath)} (${kb} KB)`);
+                (0, terminal_1.printSuccess)(`✅ Diagram saved: ${path.relative(ctx.cwd, result.outputPath)}`);
+            }
+            catch (err) {
+                spinner3.stop();
+                (0, terminal_1.printError)(`Diagram failed: ${err.message}`);
+            }
+            break;
+        }
+        // ── Image ─────────────────────────────────────────────────────────────────
+        case 'image': {
+            const prompt = args.join(' ');
+            if (!prompt) {
+                (0, terminal_1.printError)('Usage: /image <prompt>');
+                (0, terminal_1.printInfo)('Requires: OPENAI_API_KEY (DALL-E 3) or STABILITY_API_KEY');
+                (0, terminal_1.printInfo)('Without keys: generates a placeholder SVG');
+                break;
+            }
+            const imgSpinner = (0, terminal_1.createSpinner)('🎨 Generating image…');
+            imgSpinner.start();
+            try {
+                const safeName = prompt.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const outFile = path.resolve(ctx.cwd, `${safeName}.png`);
+                const result = await (0, index_7.generateImage)({
+                    prompt,
+                    outputPath: outFile,
+                    size: '1024x1024',
+                    onProgress: (msg) => imgSpinner.stop(msg),
+                });
+                const kb = (result.sizeBytes / 1024).toFixed(1);
+                const provLabel = result.provider === 'dalle' ? 'DALL-E 3' :
+                    result.provider === 'stability' ? 'Stability AI' : 'Placeholder SVG';
+                (0, terminal_1.printSuccess)(`✅ Image saved: ${path.relative(ctx.cwd, result.outputPath)} (${kb} KB) via ${provLabel}`);
+            }
+            catch (err) {
+                imgSpinner.stop();
+                (0, terminal_1.printError)(`Image generation failed: ${err.message}`);
+            }
             break;
         }
         default:

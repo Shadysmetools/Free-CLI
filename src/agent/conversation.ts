@@ -84,6 +84,8 @@ export interface SystemPromptOptions {
   projectMemory?: string | null;       // legacy KNOWCAP.md / CLAUDE.md
   memoryContext?: string;              // from MemoryManager.getSystemContext()
   skillContext?: string;               // from SkillsManager.getSkillContext()
+  profileContext?: string;             // from ProfileManager.buildSystemBlock()
+  personaContext?: string;             // from PersonaManager.buildSystemBlock()
 }
 
 export function buildSystemPrompt(
@@ -144,6 +146,16 @@ You have access to tools for:
   // Active skills (injected per-message in core.ts, but can also be base context)
   if (opts.skillContext) {
     prompt += opts.skillContext;
+  }
+
+  // User profile context
+  if (opts.profileContext) {
+    prompt += opts.profileContext;
+  }
+
+  // Persona / language context
+  if (opts.personaContext) {
+    prompt += opts.personaContext;
   }
 
   return prompt;

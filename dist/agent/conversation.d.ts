@@ -24,6 +24,8 @@ export interface SystemPromptOptions {
     projectMemory?: string | null;
     memoryContext?: string;
     skillContext?: string;
+    profileContext?: string;
+    personaContext?: string;
 }
 export declare function buildSystemPrompt(projectMemoryOrOptions: string | null | SystemPromptOptions, cwd?: string): string;
 //# sourceMappingURL=conversation.d.ts.map

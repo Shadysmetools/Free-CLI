@@ -116,6 +116,14 @@ You have access to tools for:
     if (opts.skillContext) {
         prompt += opts.skillContext;
     }
+    // User profile context
+    if (opts.profileContext) {
+        prompt += opts.profileContext;
+    }
+    // Persona / language context
+    if (opts.personaContext) {
+        prompt += opts.personaContext;
+    }
     return prompt;
 }
 //# sourceMappingURL=conversation.js.map

@@ -3,6 +3,12 @@ import * as path from 'path';
 import * as child_process from 'child_process';
 import { Tool } from '../providers/index';
 
+// ─── PDF / Excel lazy imports (runtime-only, avoid tsc issues) ────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PDFDocument = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ExcelWorkbook = any;
+
 export interface ToolResult {
   content: string;
   isError?: boolean;
@@ -141,6 +147,128 @@ export const TOOLS: Tool[] = [
       required: [],
     },
   },
+  {
+    name: 'generate_pdf',
+    description: 'Generate a PDF document from a title and markdown/plain-text content. Use for reports, invoices, documentation, and summaries.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Document title (shown at the top of the PDF)',
+        },
+        content: {
+          type: 'string',
+          description: 'Document body in plain text or simple markdown (## headings, **bold**, bullet lists with -)',
+        },
+        output_path: {
+          type: 'string',
+          description: 'Where to save the PDF file, e.g. "report.pdf" or "docs/invoice.pdf"',
+        },
+        author: {
+          type: 'string',
+          description: 'Optional author name embedded in PDF metadata',
+        },
+        font_size: {
+          type: 'number',
+          description: 'Body font size in points (default: 12)',
+        },
+      },
+      required: ['title', 'content', 'output_path'],
+    },
+  },
+  {
+    name: 'generate_diagram',
+    description: 'Generate a diagram (flowchart, sequence, class, ER, Gantt, architecture, mindmap) using Mermaid.js and save it as a PNG or SVG file.',
+    parameters: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          description: 'Diagram type',
+          enum: ['flowchart', 'sequence', 'class', 'er', 'gantt', 'architecture', 'mindmap', 'timeline', 'mermaid'],
+        },
+        code: {
+          type: 'string',
+          description: 'Mermaid diagram code (without ```mermaid fences). Must start with the diagram directive e.g. "flowchart TD"',
+        },
+        output_path: {
+          type: 'string',
+          description: 'Where to save the output file, e.g. "diagrams/auth-flow.png" or "architecture.svg"',
+        },
+        format: {
+          type: 'string',
+          description: 'Output format: "png" (default) or "svg"',
+          enum: ['png', 'svg'],
+        },
+        width: {
+          type: 'number',
+          description: 'Width in pixels (default: 1200)',
+        },
+      },
+      required: ['code', 'output_path'],
+    },
+  },
+  {
+    name: 'generate_image',
+    description: 'Generate an image using AI (DALL-E 3 with OPENAI_API_KEY, Stability AI with STABILITY_API_KEY, or a placeholder SVG if no key is set). Use for logos, illustrations, and concept art.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Detailed description of the image to generate',
+        },
+        output_path: {
+          type: 'string',
+          description: 'Where to save the image file, e.g. "assets/logo.png"',
+        },
+        size: {
+          type: 'string',
+          description: 'Image dimensions',
+          enum: ['256x256', '512x512', '1024x1024', '1792x1024', '1024x1792'],
+        },
+        quality: {
+          type: 'string',
+          description: '"standard" (default) or "hd" (DALL-E 3 only)',
+          enum: ['standard', 'hd'],
+        },
+        style: {
+          type: 'string',
+          description: '"vivid" (dramatic, default) or "natural" (realistic)',
+          enum: ['vivid', 'natural'],
+        },
+      },
+      required: ['prompt', 'output_path'],
+    },
+  },
+  {
+    name: 'generate_excel',
+    description: 'Generate an Excel (.xlsx) spreadsheet with one or more sheets of tabular data. Use for data exports, reports, and financial tables.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Workbook title (stored in metadata)',
+        },
+        sheets: {
+          type: 'array',
+          description: 'Array of sheets, each with a name, headers array, and rows array-of-arrays',
+          items: { type: 'object' },
+        },
+        output_path: {
+          type: 'string',
+          description: 'Where to save the .xlsx file, e.g. "data.xlsx" or "reports/sales.xlsx"',
+        },
+        author: {
+          type: 'string',
+          description: 'Optional author name embedded in workbook metadata',
+        },
+      },
+      required: ['title', 'sheets', 'output_path'],
+    },
+  },
 ];
 
 export async function executeTool(
@@ -160,6 +288,10 @@ export async function executeTool(
       case 'git_diff': return gitDiff(args as { file?: string; staged?: string }, cwd);
       case 'git_commit': return gitCommit(args as { message: string; files?: string }, cwd);
       case 'git_log': return gitLog(args as { limit?: number; file?: string }, cwd);
+      case 'generate_pdf': return generatePdf(args as { title: string; content: string; output_path: string; author?: string; font_size?: number }, cwd);
+      case 'generate_excel': return generateExcel(args as { title: string; sheets: SheetDef[]; output_path: string; author?: string }, cwd);
+      case 'generate_diagram': return generateDiagram(args as { type?: string; code: string; output_path: string; format?: string; width?: number }, cwd);
+      case 'generate_image': return generateImage(args as { prompt: string; output_path: string; size?: string; quality?: string; style?: string }, cwd);
       default: return { content: `Unknown tool: ${name}`, isError: true };
     }
   } catch (err) {
@@ -333,5 +465,350 @@ function gitCommit(args: { message: string; files?: string }, cwd: string): Tool
   } catch (err) {
     const error = err as { stderr?: string; message?: string };
     return { content: error.stderr || error.message || 'Commit failed', isError: true };
+  }
+}
+
+// ─── PDF Generation ───────────────────────────────────────────────────────────
+
+async function generatePdf(
+  args: { title: string; content: string; output_path: string; author?: string; font_size?: number },
+  cwd: string
+): Promise<ToolResult> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const PDFDocumentClass = require('pdfkit') as new (opts: object) => PDFDocument;
+    const fullPath = resolvePath(args.output_path, cwd);
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const fontSize = args.font_size ?? 12;
+    const headingSize = Math.round(fontSize * 1.6);
+    const subheadingSize = Math.round(fontSize * 1.3);
+
+    const doc: PDFDocument = new PDFDocumentClass({
+      margin: 60,
+      info: {
+        Title: args.title,
+        Author: args.author ?? 'knowcap-code',
+        Creator: 'knowcap-code AI Assistant',
+        Producer: 'pdfkit',
+      },
+    });
+
+    const stream = fs.createWriteStream(fullPath);
+    doc.pipe(stream);
+
+    // ── Title block ──────────────────────────────────────────────────────────
+    doc
+      .fontSize(headingSize + 4)
+      .font('Helvetica-Bold')
+      .text(args.title, { align: 'center' });
+
+    doc.moveDown(0.4);
+
+    const dateLine = `Generated by knowcap-code · ${new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+    doc.fontSize(9).font('Helvetica').fillColor('#888888').text(dateLine, { align: 'center' });
+    doc.fillColor('#000000');
+
+    doc.moveDown(0.8);
+    doc.moveTo(doc.page.margins.left, doc.y)
+      .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+      .strokeColor('#cccccc').lineWidth(1).stroke();
+    doc.moveDown(0.8);
+
+    // ── Body: simple markdown → PDF ──────────────────────────────────────────
+    const lines = args.content.split('\n');
+
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+
+      if (line.startsWith('## ')) {
+        doc.moveDown(0.5);
+        doc.fontSize(headingSize).font('Helvetica-Bold').fillColor('#1a1a2e')
+          .text(line.slice(3));
+        doc.moveDown(0.15);
+        doc.moveTo(doc.page.margins.left, doc.y)
+          .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+          .strokeColor('#dddddd').lineWidth(0.5).stroke();
+        doc.moveDown(0.3);
+        doc.fillColor('#000000');
+
+      } else if (line.startsWith('### ')) {
+        doc.moveDown(0.3);
+        doc.fontSize(subheadingSize).font('Helvetica-Bold').fillColor('#2c2c54')
+          .text(line.slice(4));
+        doc.moveDown(0.2);
+        doc.fillColor('#000000');
+
+      } else if (line.startsWith('- ') || line.startsWith('* ')) {
+        // Bullet item — render inline bold via segments
+        doc.fontSize(fontSize).font('Helvetica');
+        renderInline(doc, '• ' + line.slice(2), fontSize);
+        doc.moveDown(0.1);
+
+      } else if (/^\d+\.\s/.test(line)) {
+        // Numbered list
+        doc.fontSize(fontSize).font('Helvetica');
+        renderInline(doc, line, fontSize);
+        doc.moveDown(0.1);
+
+      } else if (line === '' || line === '---' || line.startsWith('---')) {
+        if (line.startsWith('---')) {
+          doc.moveDown(0.3);
+          doc.moveTo(doc.page.margins.left, doc.y)
+            .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+            .strokeColor('#eeeeee').lineWidth(0.5).stroke();
+          doc.moveDown(0.3);
+        } else {
+          doc.moveDown(0.4);
+        }
+
+      } else if (line.startsWith('    ') || line.startsWith('\t')) {
+        // Code block style
+        doc.fontSize(fontSize - 1).font('Courier').fillColor('#333333')
+          .text(line.replace(/^\t/, '    '), { indent: 8 });
+        doc.fillColor('#000000');
+
+      } else {
+        doc.fontSize(fontSize).font('Helvetica');
+        renderInline(doc, line, fontSize);
+        doc.moveDown(0.2);
+      }
+    }
+
+    doc.end();
+
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve);
+      stream.on('error', reject);
+    });
+
+    const stat = fs.statSync(fullPath);
+    const kb = (stat.size / 1024).toFixed(1);
+    return { content: `✓ PDF created: ${args.output_path} (${kb} KB)\n  Pages: ~${Math.ceil(lines.length / 50)} · Title: "${args.title}"` };
+
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes("Cannot find module 'pdfkit'")) {
+      return { content: 'pdfkit not installed. Run: npm install pdfkit', isError: true };
+    }
+    return { content: `PDF generation failed: ${msg}`, isError: true };
+  }
+}
+
+/** Render a line that may contain **bold** markers via pdfkit's .text() continuation */
+function renderInline(doc: PDFDocument, text: string, fontSize: number): void {
+  // Split on **...**
+  const segments = text.split(/(\*\*[^*]+\*\*)/g);
+  if (segments.length === 1) {
+    // No bold — simple write
+    doc.fontSize(fontSize).font('Helvetica').text(text, { continued: false });
+    return;
+  }
+
+  let first = true;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const isLast = i === segments.length - 1;
+    if (!seg) continue;
+
+    if (seg.startsWith('**') && seg.endsWith('**')) {
+      doc.fontSize(fontSize).font('Helvetica-Bold')
+        .text(seg.slice(2, -2), { continued: !isLast, lineBreak: isLast });
+    } else {
+      if (first) {
+        doc.fontSize(fontSize).font('Helvetica')
+          .text(seg, { continued: !isLast, lineBreak: isLast });
+      } else {
+        doc.font('Helvetica').text(seg, { continued: !isLast, lineBreak: isLast });
+      }
+    }
+    first = false;
+  }
+}
+
+// ─── Excel Generation ─────────────────────────────────────────────────────────
+
+interface SheetDef {
+  name: string;
+  headers: string[];
+  rows: (string | number | boolean | null)[][];
+}
+
+async function generateExcel(
+  args: { title: string; sheets: SheetDef[]; output_path: string; author?: string },
+  cwd: string
+): Promise<ToolResult> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ExcelJS = require('exceljs') as { Workbook: new () => ExcelWorkbook };
+    const fullPath = resolvePath(args.output_path, cwd);
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const workbook: ExcelWorkbook = new ExcelJS.Workbook();
+    workbook.creator = args.author ?? 'knowcap-code';
+    workbook.lastModifiedBy = 'knowcap-code AI Assistant';
+    workbook.created = new Date();
+    workbook.modified = new Date();
+    workbook.title = args.title;
+
+    const sheets: SheetDef[] = Array.isArray(args.sheets) ? args.sheets : [];
+    if (sheets.length === 0) {
+      return { content: 'No sheets provided. Specify at least one sheet with name, headers, and rows.', isError: true };
+    }
+
+    let totalRows = 0;
+
+    for (const sheetDef of sheets) {
+      const sheetName = (sheetDef.name || 'Sheet').slice(0, 31); // Excel max 31 chars
+      const ws = workbook.addWorksheet(sheetName);
+
+      const headers: string[] = Array.isArray(sheetDef.headers) ? sheetDef.headers : [];
+      const rows: (string | number | boolean | null)[][] = Array.isArray(sheetDef.rows) ? sheetDef.rows : [];
+
+      // ── Header row ────────────────────────────────────────────────────────
+      if (headers.length > 0) {
+        ws.columns = headers.map((h, i) => ({
+          header: String(h),
+          key: `col${i}`,
+          width: Math.max(12, String(h).length + 4),
+        }));
+
+        const headerRow = ws.getRow(1);
+        headerRow.eachCell((cell: ExcelWorkbook) => {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A2E' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = {
+            bottom: { style: 'medium', color: { argb: 'FF4A90D9' } },
+          };
+        });
+        headerRow.height = 20;
+      }
+
+      // ── Data rows ─────────────────────────────────────────────────────────
+      for (let i = 0; i < rows.length; i++) {
+        const rowData = rows[i];
+        if (!Array.isArray(rowData)) continue;
+
+        const dataRow = ws.addRow(rowData);
+        totalRows++;
+
+        // Zebra striping
+        if (i % 2 === 1) {
+          dataRow.eachCell({ includeEmpty: true }, (cell: ExcelWorkbook) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+          });
+        }
+
+        // Auto-detect numbers for right-alignment
+        dataRow.eachCell({ includeEmpty: true }, (cell: ExcelWorkbook) => {
+          if (typeof cell.value === 'number') {
+            cell.alignment = { horizontal: 'right' };
+          }
+        });
+      }
+
+      // ── Auto-fit column widths based on content ────────────────────────────
+      ws.columns.forEach((col: ExcelWorkbook) => {
+        if (!col.key) return;
+        let maxLen = col.header ? String(col.header).length : 10;
+        ws.getColumn(col.key).eachCell({ includeEmpty: false }, (cell: ExcelWorkbook) => {
+          if (cell.value) {
+            const len = String(cell.value).length;
+            if (len > maxLen) maxLen = len;
+          }
+        });
+        col.width = Math.min(maxLen + 4, 60);
+      });
+
+      // ── Freeze header row ─────────────────────────────────────────────────
+      ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, activeCell: 'A2' }];
+    }
+
+    await workbook.xlsx.writeFile(fullPath);
+
+    const stat = fs.statSync(fullPath);
+    const kb = (stat.size / 1024).toFixed(1);
+    const sheetNames = sheets.map(s => s.name).join(', ');
+    return {
+      content: `✓ Excel created: ${args.output_path} (${kb} KB)\n  Sheets: ${sheets.length} (${sheetNames}) · Rows: ${totalRows}`,
+    };
+
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes("Cannot find module 'exceljs'")) {
+      return { content: 'exceljs not installed. Run: npm install exceljs', isError: true };
+    }
+    return { content: `Excel generation failed: ${msg}`, isError: true };
+  }
+}
+
+// ─── Diagram Generation ───────────────────────────────────────────────────────
+
+async function generateDiagram(
+  args: { type?: string; code: string; output_path: string; format?: string; width?: number },
+  cwd: string
+): Promise<ToolResult> {
+  try {
+    const { generateDiagram: renderDiagram, normaliseMermaid } = await import('../diagrams/index');
+    const type = (args.type || 'mermaid') as import('../diagrams/index').DiagramType;
+    const format = (args.format === 'svg' ? 'svg' : 'png') as 'png' | 'svg';
+    const outPath = resolvePath(args.output_path, cwd);
+
+    // Ensure .png or .svg extension
+    const ext = path.extname(outPath);
+    const finalOut = (ext === '.png' || ext === '.svg') ? outPath
+      : outPath + '.' + format;
+
+    const result = await renderDiagram({
+      type,
+      code: normaliseMermaid(args.code, type),
+      outputPath: finalOut,
+      format,
+      width: args.width,
+    });
+
+    const kb = (result.sizeBytes / 1024).toFixed(1);
+    const rel = path.relative(cwd, result.outputPath);
+    return {
+      content: `✓ Diagram saved: ${rel} (${kb} KB)\n  Type: ${result.type} · Format: ${result.format}\n  Code: ${result.mermaidCode.split('\n').length} lines`,
+    };
+  } catch (err) {
+    const msg = (err as Error).message;
+    return { content: `Diagram generation failed: ${msg}`, isError: true };
+  }
+}
+
+// ─── Image Generation ─────────────────────────────────────────────────────────
+
+async function generateImage(
+  args: { prompt: string; output_path: string; size?: string; quality?: string; style?: string },
+  cwd: string
+): Promise<ToolResult> {
+  try {
+    const { generateImage: renderImage } = await import('../diagrams/index');
+    const outPath = resolvePath(args.output_path, cwd);
+
+    const result = await renderImage({
+      prompt: args.prompt,
+      outputPath: outPath,
+      size: (args.size || '1024x1024') as '1024x1024',
+      quality: (args.quality || 'standard') as 'standard' | 'hd',
+      style: (args.style || 'vivid') as 'vivid' | 'natural',
+    });
+
+    const kb = (result.sizeBytes / 1024).toFixed(1);
+    const rel = path.relative(cwd, result.outputPath);
+    const providerLabel = result.provider === 'dalle' ? 'DALL-E 3' :
+                          result.provider === 'stability' ? 'Stability AI' : 'Placeholder SVG';
+
+    return {
+      content: `✓ Image saved: ${rel} (${kb} KB)\n  Provider: ${providerLabel}\n  Prompt: "${args.prompt.slice(0, 80)}${args.prompt.length > 80 ? '…' : ''}"`,
+    };
+  } catch (err) {
+    const msg = (err as Error).message;
+    return { content: `Image generation failed: ${msg}`, isError: true };
   }
 }

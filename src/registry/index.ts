@@ -14,7 +14,7 @@ import { ToolResult } from '../agent/tools';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ToolCategory = 'file' | 'shell' | 'git' | 'mcp' | 'whisper' | 'memory' | 'custom';
+export type ToolCategory = 'file' | 'shell' | 'git' | 'mcp' | 'whisper' | 'memory' | 'document' | 'visual' | 'custom';
 
 export interface RegisteredTool extends Tool {
   category: ToolCategory;
@@ -121,7 +121,7 @@ export class ToolRegistry {
       byCategory.set(tool.category, list);
     }
 
-    const categoryOrder: ToolCategory[] = ['file', 'shell', 'git', 'memory', 'whisper', 'mcp', 'custom'];
+    const categoryOrder: ToolCategory[] = ['file', 'shell', 'git', 'memory', 'document', 'visual', 'whisper', 'mcp', 'custom'];
     const lines: string[] = [''];
 
     for (const cat of categoryOrder) {
@@ -173,6 +173,8 @@ function categoryLabel(cat: ToolCategory): string {
     shell: '⚡ Shell Tools',
     git: '🌿 Git Tools',
     memory: '🧠 Memory Tools',
+    document: '📑 Document Tools',
+    visual: '🎨 Visual / Diagram Tools',
     whisper: '🎤 Whisper Tools',
     mcp: '🔌 MCP Tools',
     custom: '🔧 Custom Tools',
@@ -199,6 +201,18 @@ export function createDefaultRegistry(): ToolRegistry {
   for (const name of ['git_status', 'git_diff', 'git_commit', 'git_log']) {
     const tool = getBuiltinTool(name);
     if (tool) registry.register(tool, 'git');
+  }
+
+  // Document tools
+  for (const name of ['generate_pdf', 'generate_excel']) {
+    const tool = getBuiltinTool(name);
+    if (tool) registry.register(tool, 'document');
+  }
+
+  // Visual / Diagram tools
+  for (const name of ['generate_diagram', 'generate_image']) {
+    const tool = getBuiltinTool(name);
+    if (tool) registry.register(tool, 'visual');
   }
 
   // Memory tools (definitions only — execution handled by memory system)
