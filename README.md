@@ -145,6 +145,14 @@ export OPENROUTER_API_KEY="sk-or-..."
 kcc --provider openrouter --model anthropic/claude-3.5-sonnet
 ```
 
+## Free OpenRouter Models
+
+- `meta-llama/llama-3.3-70b-instruct:free` — Best overall
+- `deepseek/deepseek-r1:free` — Best reasoning
+- `mistral/devstral-2:free` — Best for coding
+- `google/gemma-3-27b-it:free` — Google's free
+- `openrouter/auto` — Auto-pick best free model
+
 ### Persist your default provider
 
 ```bash

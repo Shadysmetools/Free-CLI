@@ -93,9 +93,48 @@ export async function runAgent(
   let lastContent = '';
   let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
+  // Provider-specific context limits (in characters — rough proxy for tokens)
+  const CONTEXT_CHAR_LIMITS: Record<string, number> = {
+    groq: 24_000,    // ~6K tokens × ~4 chars/token — conservative for 8K limit
+    openrouter: 80_000,
+    anthropic: 200_000,
+    ollama: 60_000,
+    google: 200_000,
+  };
+  const contextLimit = CONTEXT_CHAR_LIMITS[provider.name] ?? 60_000;
+
+  /** Trim conversation to fit within charLimit, keeping system + last minKeep messages. */
+  function trimConversation(minKeep = 5): void {
+    const msgs = conversation.messages;
+    const systemMsgs = msgs.filter(m => m.role === 'system');
+    const nonSystem = msgs.filter(m => m.role !== 'system');
+
+    // Truncate long tool results to 500 chars to save context
+    for (const m of nonSystem) {
+      if (m.role === 'tool' && m.content.length > 500) {
+        m.content = m.content.slice(0, 500) + '\n…[truncated]';
+      }
+    }
+
+    const totalChars = msgs.reduce((sum, m) => sum + m.content.length, 0);
+    if (totalChars <= contextLimit) return;
+
+    // Remove old non-system messages until we're under the limit, keeping last minKeep
+    while (nonSystem.length > minKeep) {
+      const totalNow = [...systemMsgs, ...nonSystem].reduce((sum, m) => sum + m.content.length, 0);
+      if (totalNow <= contextLimit) break;
+      nonSystem.shift(); // remove oldest
+    }
+
+    conversation.messages = [...systemMsgs, ...nonSystem];
+  }
+
   while (iterations < maxIterations) {
     iterations++;
     const doStream = stream && iterations === 1;
+
+    // Auto-trim context before each provider call
+    trimConversation(5);
 
     let result;
     try {

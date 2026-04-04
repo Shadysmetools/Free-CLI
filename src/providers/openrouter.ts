@@ -90,7 +90,7 @@ export class OpenRouterProvider implements Provider {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(bodyStr),
-          'HTTP-Referer': 'https://github.com/Smetools/knowcap-code',
+          'HTTP-Referer': 'https://github.com/Shadysmetools/knowcap-code',
           'X-Title': 'knowcap-code',
         },
       }, (res) => {
@@ -130,7 +130,7 @@ export class OpenRouterProvider implements Provider {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(bodyStr),
-          'HTTP-Referer': 'https://github.com/Smetools/knowcap-code',
+          'HTTP-Referer': 'https://github.com/Shadysmetools/knowcap-code',
           'X-Title': 'knowcap-code',
         },
       }, (res) => {

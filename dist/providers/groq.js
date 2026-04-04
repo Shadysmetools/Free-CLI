@@ -44,6 +44,17 @@ class GroqProvider {
     async isAvailable() {
         return !!(this.apiKey || process.env.GROQ_API_KEY);
     }
+    /** Parse "Please try again in Xs" or "in Xm Ys" from Groq 429 messages. Returns ms to wait. */
+    parseRetryAfterMs(message) {
+        // "Please try again in 30s" or "try again in 1m30s"
+        const secMatch = message.match(/try again in (?:(\d+)m\s*)?(\d+(?:\.\d+)?)s/i);
+        if (secMatch) {
+            const mins = parseInt(secMatch[1] || '0', 10);
+            const secs = parseFloat(secMatch[2] || '0');
+            return Math.ceil((mins * 60 + secs) * 1000);
+        }
+        return 30000; // default 30s
+    }
     async complete(options) {
         const key = this.apiKey || process.env.GROQ_API_KEY;
         if (!key) {
@@ -68,11 +79,33 @@ class GroqProvider {
             body.tool_choice = 'auto';
             body.stream = false;
         }
-        if (stream && !tools && onToken) {
-            return this.streamRequest(key, body, onToken);
+        const maxRetries = 2;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                if (stream && !tools && onToken) {
+                    return await this.streamRequest(key, body, onToken);
+                }
+                const response = await this.post(key, body);
+                return this.parseResponse(response);
+            }
+            catch (err) {
+                const msg = err.message;
+                const is429 = msg.includes('429') || msg.toLowerCase().includes('rate limit');
+                if (is429 && attempt < maxRetries) {
+                    const waitMs = this.parseRetryAfterMs(msg);
+                    const waitSec = Math.ceil(waitMs / 1000);
+                    process.stderr.write(`\n⏳ Groq rate limited — waiting ${waitSec}s before retry (${attempt + 1}/${maxRetries})...\n`);
+                    await new Promise(resolve => setTimeout(resolve, waitMs));
+                    continue;
+                }
+                if (is429) {
+                    throw new Error(`⏳ Rate limited. Wait ~30s or switch: /model openrouter:meta-llama/llama-3.3-70b-instruct:free`);
+                }
+                throw err;
+            }
         }
-        const response = await this.post(key, body);
-        return this.parseResponse(response);
+        // Should never reach here
+        throw new Error('Groq: max retries exceeded');
     }
     parseResponse(data) {
         const choice = data.choices?.[0];
