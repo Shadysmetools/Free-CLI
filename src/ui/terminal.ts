@@ -159,6 +159,7 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/persona')} [list/set]  Manage language persona
   ${c.green('/history')}             Session history
   ${c.green('/transcribe')} <file>   Transcribe audio/video
+  ${c.green('/key [provider] [key]')} Show/set API keys
   ${c.green('/config')}              Show configuration
 
 ${c.bold('FREE PROVIDERS')}

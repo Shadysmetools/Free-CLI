@@ -509,6 +509,59 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
     }
 
     // ── Config ────────────────────────────────────────────────────────────────
+    case 'key': {
+      // /key — show or set API key for current provider
+      // /key set <key> — set key for current provider
+      // /key <provider> <key> — set key for specific provider
+      const rl = await import('readline');
+      if (args[0] === 'set' && args[1]) {
+        // /key set sk-or-v1-xxx
+        process.env.OPENROUTER_API_KEY = args[1];
+        ctx.settings.providers.openrouter = ctx.settings.providers.openrouter || {} as any;
+        ctx.settings.providers.openrouter.apiKey = args[1];
+        saveSettings(ctx.settings);
+        printSuccess('API key updated for current provider!');
+      } else if (args[0] && args[1]) {
+        // /key openrouter sk-or-v1-xxx
+        const providerName = args[0].toLowerCase();
+        const envMap: Record<string, string> = {
+          openrouter: 'OPENROUTER_API_KEY',
+          groq: 'GROQ_API_KEY',
+          google: 'GOOGLE_API_KEY',
+          gemini: 'GOOGLE_API_KEY',
+          anthropic: 'ANTHROPIC_API_KEY',
+          openai: 'OPENAI_API_KEY',
+        };
+        const envVar = envMap[providerName];
+        if (envVar) {
+          process.env[envVar] = args[1];
+          ctx.settings.providers[providerName] = ctx.settings.providers[providerName] || {} as any;
+          (ctx.settings.providers[providerName] as any).apiKey = args[1];
+          saveSettings(ctx.settings);
+          printSuccess(`API key updated for ${providerName}!`);
+        } else {
+          printError(`Unknown provider: ${providerName}. Try: openrouter, groq, google, anthropic, openai`);
+        }
+      } else {
+        // /key — show which keys are set
+        printSectionHeader('🔑 API Keys');
+        const keys = [
+          { name: 'OpenRouter', env: 'OPENROUTER_API_KEY' },
+          { name: 'Groq', env: 'GROQ_API_KEY' },
+          { name: 'Google/Gemini', env: 'GOOGLE_API_KEY' },
+          { name: 'Anthropic', env: 'ANTHROPIC_API_KEY' },
+          { name: 'OpenAI', env: 'OPENAI_API_KEY' },
+        ];
+        for (const k of keys) {
+          const val = process.env[k.env];
+          const status = val ? chalk.green(`✓ set (${val.slice(0, 8)}...${val.slice(-4)})`) : chalk.red('✗ not set');
+          console.log(`  ${chalk.cyan(k.name.padEnd(16))} ${status}`);
+        }
+        console.log(chalk.dim(`\n  Usage: /key set <api-key>  or  /key <provider> <api-key>`));
+      }
+      break;
+    }
+
     case 'config': {
       if (args[0] === 'set' && args[1] && args[2]) {
         const [section, key] = args[1].split('.');
