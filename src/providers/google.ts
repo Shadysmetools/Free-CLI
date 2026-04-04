@@ -5,7 +5,7 @@ export class GoogleProvider implements Provider {
   name = 'google';
 
   constructor(
-    public model: string = 'gemini-2.0-flash',
+    public model: string = 'gemini-2.5-flash',
     private apiKey?: string
   ) {}
 

@@ -90,7 +90,7 @@ async function detectProviders(): Promise<DetectedProvider[]> {
     label: 'Google Gemini (free tier)',
     available: !!googleKey,
     free: true,
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     reason: googleKey ? 'GOOGLE_API_KEY found' : 'no GOOGLE_API_KEY set',
   });
 
@@ -296,7 +296,7 @@ async function showProviderMenu(): Promise<ProviderChoice | null> {
       case '3': {
         const key = (await ask(chalk.cyan('  Google API key: '))).trim();
         if (!key) { console.log(chalk.red('  No key entered.')); return null; }
-        return { id: 'google', model: 'gemini-2.0-flash', apiKey: key };
+        return { id: 'google', model: 'gemini-2.5-flash', apiKey: key };
       }
 
       case '4': {

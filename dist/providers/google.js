@@ -36,7 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GoogleProvider = void 0;
 const https = __importStar(require("https"));
 class GoogleProvider {
-    constructor(model = 'gemini-2.0-flash', apiKey) {
+    constructor(model = 'gemini-2.5-flash', apiKey) {
         this.model = model;
         this.apiKey = apiKey;
         this.name = 'google';

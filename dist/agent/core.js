@@ -9,8 +9,11 @@ const conversation_1 = require("./conversation");
 const tools_1 = require("./tools");
 Object.defineProperty(exports, "fileChanges", { enumerable: true, get: function () { return tools_1.fileChanges; } });
 const terminal_1 = require("../ui/terminal");
+const fallback_1 = require("../providers/fallback");
 const chalk_1 = __importDefault(require("chalk"));
-async function runAgent(provider, conversation, userMessage, options) {
+async function runAgent(providerArg, conversation, userMessage, options) {
+    // Allow provider to be reassigned on fallback
+    let provider = providerArg;
     const { cwd, stream, onToken, maxIterations = 10, mcpClient, registry, memory, skills, tokenTracker, } = options;
     const turnStart = Date.now();
     // ── Skill injection per-message ──────────────────────────────────────────
@@ -92,7 +95,7 @@ async function runAgent(provider, conversation, userMessage, options) {
         trimConversation(5);
         let result;
         try {
-            result = await provider.complete({
+            const fallbackResult = await (0, fallback_1.completeWithFallback)(provider, {
                 messages: conversation.messages,
                 tools: allTools,
                 stream: doStream,
@@ -101,7 +104,15 @@ async function runAgent(provider, conversation, userMessage, options) {
                     if (onToken)
                         onToken(token);
                 } : undefined,
+            }, (msg) => {
+                // Print fallback status on its own line
+                process.stdout.write('\n' + chalk_1.default.yellow(msg) + '\n');
             });
+            result = fallbackResult.result;
+            // If provider was swapped, update for remaining iterations
+            if (fallbackResult.activeProvider !== provider) {
+                provider = fallbackResult.activeProvider;
+            }
         }
         catch (err) {
             const msg = err.message;

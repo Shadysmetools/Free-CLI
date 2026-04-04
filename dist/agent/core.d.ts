@@ -25,6 +25,6 @@ export interface AgentResult {
         total_tokens: number;
     };
 }
-export declare function runAgent(provider: Provider, conversation: ConversationState, userMessage: string, options: AgentOptions): Promise<AgentResult>;
+export declare function runAgent(providerArg: Provider, conversation: ConversationState, userMessage: string, options: AgentOptions): Promise<AgentResult>;
 export { fileChanges };
 //# sourceMappingURL=core.d.ts.map

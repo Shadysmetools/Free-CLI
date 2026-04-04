@@ -60,4 +60,15 @@ export declare const PROVIDER_INFO: Record<string, {
     requiresKey: boolean;
     free: boolean;
 }>;
+/**
+ * Curated model lists per provider (for /models command and tab-completion).
+ * Keep these up-to-date as providers release new models.
+ * Last updated: 2026-04
+ */
+export declare const PROVIDER_MODELS: Record<string, Array<{
+    id: string;
+    label: string;
+    free: boolean;
+    recommended?: boolean;
+}>>;
 //# sourceMappingURL=index.d.ts.map

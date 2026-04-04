@@ -124,6 +124,11 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/openclaw history')} <session>   View session history
   ${c.green('/openclaw cron')}       List cron jobs
 
+  ${c.bold.dim('── Providers & Models ───────────────────────')}
+  ${c.green('/providers')}           Status of all providers (🟢/🔴)
+  ${c.green('/models')} [provider]   Full model list per provider
+  ${c.green('/model')} <p>:<m>       Switch provider/model mid-session
+
   ${c.bold.dim('── Other ─────────────────────────────────────')}
   ${c.green('/transcribe')} <file>   Transcribe audio/video
   ${c.green('/mcp')}                 List MCP servers + tools
@@ -132,7 +137,7 @@ ${c.bold('SLASH COMMANDS')}
 ${c.bold('FREE PROVIDERS')}
   ${c.yellow('ollama')}      Local models — zero cost, zero API key
   ${c.yellow('groq')}        Ultra-fast free tier — llama-3.3-70b, deepseek-r1
-  ${c.yellow('google')}      Gemini free tier — gemini-2.0-flash
+  ${c.yellow('google')}      Gemini free tier — gemini-2.5-flash (2.0 deprecated)
   ${c.yellow('openrouter')}  Many free models via openrouter.ai
 
 ${c.bold('BYOK PROVIDERS')}

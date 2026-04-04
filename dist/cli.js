@@ -45,6 +45,7 @@ const chalk_1 = __importDefault(require("chalk"));
 const settings_1 = require("./config/settings");
 const project_1 = require("./config/project");
 const index_1 = require("./providers/index");
+const fallback_1 = require("./providers/fallback");
 const conversation_1 = require("./agent/conversation");
 const core_1 = require("./agent/core");
 const tools_1 = require("./agent/tools");
@@ -521,10 +522,13 @@ async function handleSlashCommand(input, ctx) {
                     console.log(`  ${chalk_1.default.yellow(name.padEnd(12))} ${chalk_1.default.dim(info.description)}${current}`);
                 }
                 console.log('\nUsage: /model <provider>[:<model>]');
+                console.log(chalk_1.default.dim('       /models  — see all models per provider'));
             }
             else {
-                const [newProviderName, ...modelParts] = args[0].split(':');
-                const newModelName = modelParts.join(':');
+                // Parse provider:model (model may contain colons e.g. openrouter:meta-llama/llama-3.3-70b:free)
+                const colonIdx = args[0].indexOf(':');
+                const newProviderName = colonIdx >= 0 ? args[0].slice(0, colonIdx) : args[0];
+                const newModelName = colonIdx >= 0 ? args[0].slice(colonIdx + 1) : '';
                 try {
                     if (newModelName) {
                         ctx.settings.providers[newProviderName] = ctx.settings.providers[newProviderName] || {};
@@ -532,12 +536,46 @@ async function handleSlashCommand(input, ctx) {
                     }
                     const newProvider = (0, index_1.createProvider)(newProviderName, ctx.settings);
                     ctx.onProviderChange(newProvider, newProviderName);
+                    (0, settings_1.saveSettings)(ctx.settings);
                     (0, terminal_1.printSuccess)(`Switched to ${newProviderName}/${newProvider.model}`);
                 }
                 catch (err) {
                     (0, terminal_1.printError)(err.message);
                 }
             }
+            break;
+        }
+        // ── Models catalog ────────────────────────────────────────────────────────
+        case 'models': {
+            const filterProvider = args[0]?.toLowerCase();
+            console.log('');
+            (0, terminal_1.printSectionHeader)('📋 Available Models');
+            console.log('');
+            for (const [provName, models] of Object.entries(index_1.PROVIDER_MODELS)) {
+                if (filterProvider && provName !== filterProvider)
+                    continue;
+                const info = index_1.PROVIDER_INFO[provName];
+                const isCurrent = provName === ctx.providerName;
+                const currentTag = isCurrent ? chalk_1.default.green(' ← active') : '';
+                const tierTag = info?.requiresKey ? chalk_1.default.yellow('BYOK') : chalk_1.default.green('free');
+                const keyTag = provName !== 'ollama'
+                    ? (ctx.settings.providers[provName]?.apiKey ? chalk_1.default.green('key ✓') : chalk_1.default.dim('no key'))
+                    : chalk_1.default.dim('local');
+                console.log(`${chalk_1.default.bold(provName.toUpperCase())} ${tierTag} ${keyTag}${currentTag}`);
+                for (const m of models) {
+                    const recTag = m.recommended ? chalk_1.default.cyan(' ★') : '';
+                    const freeTag = m.free ? '' : chalk_1.default.yellow(' $');
+                    const isCurModel = isCurrent && ctx.provider.model === m.id;
+                    const curTag = isCurModel ? chalk_1.default.green(' ◀ current') : '';
+                    console.log(`  ${chalk_1.default.dim('›')} ${chalk_1.default.white(m.id.padEnd(52))}${chalk_1.default.dim(m.label)}${recTag}${freeTag}${curTag}`);
+                }
+                console.log('');
+            }
+            console.log(chalk_1.default.dim('Switch: /model <provider>:<model>'));
+            console.log(chalk_1.default.dim('Example: /model openrouter:meta-llama/llama-3.3-70b-instruct:free'));
+            console.log(chalk_1.default.dim('         /model google:gemini-2.5-pro'));
+            console.log(chalk_1.default.dim('         /model groq:llama-3.1-8b-instant'));
+            console.log('');
             break;
         }
         // ── Code commands ─────────────────────────────────────────────────────────
@@ -1175,6 +1213,31 @@ Be specific about filenames and actions. Max 8 steps.`;
                 imgSpinner.stop();
                 (0, terminal_1.printError)(`Image generation failed: ${err.message}`);
             }
+            break;
+        }
+        // ── Providers status ──────────────────────────────────────────────────────
+        case 'providers': {
+            console.log('');
+            (0, terminal_1.printSectionHeader)('🔌 Provider Status');
+            console.log('');
+            const spinner = (0, terminal_1.createSpinner)('Checking providers…');
+            spinner.start();
+            const statuses = await (0, fallback_1.checkAllProviders)();
+            spinner.stop('');
+            for (const s of statuses) {
+                const dot = s.available ? chalk_1.default.green('🟢') : chalk_1.default.red('🔴');
+                const label = s.available ? chalk_1.default.green(s.label) : chalk_1.default.dim(s.label);
+                const model = chalk_1.default.dim(` — ${s.model}`);
+                const reason = chalk_1.default.dim(` (${s.reason})`);
+                const isCurrent = s.id === ctx.providerName;
+                const curTag = isCurrent ? chalk_1.default.cyan(' ← active') : '';
+                console.log(`  ${dot} ${label}${model}${reason}${curTag}`);
+            }
+            const available = statuses.filter(s => s.available).length;
+            console.log('');
+            console.log(chalk_1.default.dim(`  ${available}/${statuses.length} providers available`));
+            console.log(chalk_1.default.dim('  /models — see all models  |  /model <provider>:<model> — switch'));
+            console.log('');
             break;
         }
         default:

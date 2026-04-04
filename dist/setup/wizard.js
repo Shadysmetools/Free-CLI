@@ -113,7 +113,7 @@ async function detectProviders() {
         label: 'Google Gemini (free tier)',
         available: !!googleKey,
         free: true,
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         reason: googleKey ? 'GOOGLE_API_KEY found' : 'no GOOGLE_API_KEY set',
     });
     // Anthropic
@@ -297,7 +297,7 @@ async function showProviderMenu() {
                     console.log(chalk_1.default.red('  No key entered.'));
                     return null;
                 }
-                return { id: 'google', model: 'gemini-2.0-flash', apiKey: key };
+                return { id: 'google', model: 'gemini-2.5-flash', apiKey: key };
             }
             case '4': {
                 const key = (await ask(chalk_1.default.cyan('  Anthropic API key (sk-ant-...): '))).trim();

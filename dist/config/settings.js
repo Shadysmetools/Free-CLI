@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS = {
             model: 'gpt-4o-mini',
         },
         google: {
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
         },
         openrouter: {
             baseUrl: 'https://openrouter.ai/api/v1',

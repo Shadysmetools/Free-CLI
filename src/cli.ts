@@ -6,7 +6,8 @@ import chalk from 'chalk';
 
 import { loadSettings, saveSettings } from './config/settings';
 import { loadProjectConfig } from './config/project';
-import { createProvider, PROVIDER_INFO } from './providers/index';
+import { createProvider, PROVIDER_INFO, PROVIDER_MODELS } from './providers/index';
+import { checkAllProviders } from './providers/fallback';
 import { createConversation, compactConversation, clearConversation, getConversationStats, buildSystemPrompt } from './agent/conversation';
 import { runAgent } from './agent/core';
 import { fileChanges } from './agent/tools';
@@ -505,9 +506,12 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
           console.log(`  ${chalk.yellow(name.padEnd(12))} ${chalk.dim(info.description)}${current}`);
         }
         console.log('\nUsage: /model <provider>[:<model>]');
+        console.log(chalk.dim('       /models  — see all models per provider'));
       } else {
-        const [newProviderName, ...modelParts] = args[0].split(':');
-        const newModelName = modelParts.join(':');
+        // Parse provider:model (model may contain colons e.g. openrouter:meta-llama/llama-3.3-70b:free)
+        const colonIdx = args[0].indexOf(':');
+        const newProviderName = colonIdx >= 0 ? args[0].slice(0, colonIdx) : args[0];
+        const newModelName = colonIdx >= 0 ? args[0].slice(colonIdx + 1) : '';
         try {
           if (newModelName) {
             ctx.settings.providers[newProviderName] = ctx.settings.providers[newProviderName] || {};
@@ -515,11 +519,50 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
           }
           const newProvider = createProvider(newProviderName, ctx.settings);
           ctx.onProviderChange(newProvider, newProviderName);
+          saveSettings(ctx.settings);
           printSuccess(`Switched to ${newProviderName}/${newProvider.model}`);
         } catch (err) {
           printError((err as Error).message);
         }
       }
+      break;
+    }
+
+    // ── Models catalog ────────────────────────────────────────────────────────
+    case 'models': {
+      const filterProvider = args[0]?.toLowerCase();
+      console.log('');
+      printSectionHeader('📋 Available Models');
+      console.log('');
+
+      for (const [provName, models] of Object.entries(PROVIDER_MODELS)) {
+        if (filterProvider && provName !== filterProvider) continue;
+
+        const info = PROVIDER_INFO[provName];
+        const isCurrent = provName === ctx.providerName;
+        const currentTag = isCurrent ? chalk.green(' ← active') : '';
+        const tierTag = info?.requiresKey ? chalk.yellow('BYOK') : chalk.green('free');
+        const keyTag = provName !== 'ollama'
+          ? (ctx.settings.providers[provName]?.apiKey ? chalk.green('key ✓') : chalk.dim('no key'))
+          : chalk.dim('local');
+
+        console.log(`${chalk.bold(provName.toUpperCase())} ${tierTag} ${keyTag}${currentTag}`);
+
+        for (const m of models) {
+          const recTag = m.recommended ? chalk.cyan(' ★') : '';
+          const freeTag = m.free ? '' : chalk.yellow(' $');
+          const isCurModel = isCurrent && ctx.provider.model === m.id;
+          const curTag = isCurModel ? chalk.green(' ◀ current') : '';
+          console.log(`  ${chalk.dim('›')} ${chalk.white(m.id.padEnd(52))}${chalk.dim(m.label)}${recTag}${freeTag}${curTag}`);
+        }
+        console.log('');
+      }
+
+      console.log(chalk.dim('Switch: /model <provider>:<model>'));
+      console.log(chalk.dim('Example: /model openrouter:meta-llama/llama-3.3-70b-instruct:free'));
+      console.log(chalk.dim('         /model google:gemini-2.5-pro'));
+      console.log(chalk.dim('         /model groq:llama-3.1-8b-instant'));
+      console.log('');
       break;
     }
 
@@ -1137,6 +1180,34 @@ Be specific about filenames and actions. Max 8 steps.`;
         imgSpinner.stop();
         printError(`Image generation failed: ${(err as Error).message}`);
       }
+      break;
+    }
+
+    // ── Providers status ──────────────────────────────────────────────────────
+    case 'providers': {
+      console.log('');
+      printSectionHeader('🔌 Provider Status');
+      console.log('');
+      const spinner = createSpinner('Checking providers…');
+      spinner.start();
+      const statuses = await checkAllProviders();
+      spinner.stop('');
+
+      for (const s of statuses) {
+        const dot = s.available ? chalk.green('🟢') : chalk.red('🔴');
+        const label = s.available ? chalk.green(s.label) : chalk.dim(s.label);
+        const model = chalk.dim(` — ${s.model}`);
+        const reason = chalk.dim(` (${s.reason})`);
+        const isCurrent = s.id === ctx.providerName;
+        const curTag = isCurrent ? chalk.cyan(' ← active') : '';
+        console.log(`  ${dot} ${label}${model}${reason}${curTag}`);
+      }
+
+      const available = statuses.filter(s => s.available).length;
+      console.log('');
+      console.log(chalk.dim(`  ${available}/${statuses.length} providers available`));
+      console.log(chalk.dim('  /models — see all models  |  /model <provider>:<model> — switch'));
+      console.log('');
       break;
     }
 

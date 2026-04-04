@@ -7,6 +7,7 @@ import { MemoryManager } from '../memory/index';
 import { SkillsManager } from '../skills/index';
 import { TokenTracker } from '../tracking/tokens';
 import { printToolCall, printToolResult, printError, printResponseFooter, printWarning } from '../ui/terminal';
+import { completeWithFallback } from '../providers/fallback';
 import chalk from 'chalk';
 
 export interface AgentOptions {
@@ -31,11 +32,13 @@ export interface AgentResult {
 }
 
 export async function runAgent(
-  provider: Provider,
+  providerArg: Provider,
   conversation: ConversationState,
   userMessage: string,
   options: AgentOptions
 ): Promise<AgentResult> {
+  // Allow provider to be reassigned on fallback
+  let provider = providerArg;
   const {
     cwd,
     stream,
@@ -138,15 +141,27 @@ export async function runAgent(
 
     let result;
     try {
-      result = await provider.complete({
-        messages: conversation.messages,
-        tools: allTools,
-        stream: doStream,
-        onToken: doStream ? (token) => {
-          process.stdout.write(chalk.white(token));
-          if (onToken) onToken(token);
-        } : undefined,
-      });
+      const fallbackResult = await completeWithFallback(
+        provider,
+        {
+          messages: conversation.messages,
+          tools: allTools,
+          stream: doStream,
+          onToken: doStream ? (token) => {
+            process.stdout.write(chalk.white(token));
+            if (onToken) onToken(token);
+          } : undefined,
+        },
+        (msg) => {
+          // Print fallback status on its own line
+          process.stdout.write('\n' + chalk.yellow(msg) + '\n');
+        },
+      );
+      result = fallbackResult.result;
+      // If provider was swapped, update for remaining iterations
+      if (fallbackResult.activeProvider !== provider) {
+        provider = fallbackResult.activeProvider;
+      }
     } catch (err) {
       const msg = (err as Error).message;
       printError(`Provider error: ${msg}`);
