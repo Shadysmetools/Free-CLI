@@ -357,17 +357,17 @@ systemPrompt: "Respond like a senior DevOps engineer. Be terse and precise."
 Your profile is stored at `~/.knowcap-code/profile.yaml` and injected into the system prompt so the AI knows who it's talking to.
 
 ```yaml
-name: "Shady"
-role: "AI Product Manager"
-company: "Knowcap"
+name: "Alex"
+role: "Full Stack Developer"
+company: "Acme Corp"
 preferences:
   language: "TypeScript"
   style: "detailed explanations"
   review_strictness: "high"
   expertise: "senior"
 projects:
-  - name: knowcap
-    path: "~/knowcap"
+  - name: my-app
+    path: "~/my-app"
     stack: "React, Node.js, Supabase"
 ```
 
@@ -375,7 +375,7 @@ projects:
 
 ```bash
 /profile show
-/profile set name Shady
+/profile set name Alex
 /profile set role "Senior Developer"
 ```
 
