@@ -207,8 +207,11 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
     const inputResult = await readInputWithBox();
 
     if (inputResult.eof) {
-      // Give any in-flight async operation time to finish (piped mode)
-      await new Promise<void>(res => setTimeout(res, 45_000));
+      // In TTY mode, eof means Ctrl+D — ask if they really want to exit
+      if (isTTYMode()) {
+        continue; // Don't exit on accidental Ctrl+D, just show box again
+      }
+      // Pipe mode — end of input
       history.save();
       console.log(chalk.dim('\nGoodbye! 👋'));
       process.exit(0);

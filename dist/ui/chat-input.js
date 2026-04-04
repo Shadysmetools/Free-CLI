@@ -227,6 +227,11 @@ function readLineBoxed() {
             // ── Submit ────────────────────────────────────────────────────────
             if (key.name === 'return' || key.name === 'enter') {
                 const text = buffer.trim();
+                if (text.length === 0) {
+                    // Empty enter — just redraw box, don't submit
+                    redraw();
+                    return;
+                }
                 buffer = '';
                 cleanup();
                 process.stdout.write('\n'); // move cursor below the box
