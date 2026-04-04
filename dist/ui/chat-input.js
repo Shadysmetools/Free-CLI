@@ -217,7 +217,19 @@ function readLineBoxed() {
             // ── Always handle hard-exit regardless of drain ───────────────────
             if (key.ctrl && key.name === 'c') {
                 cleanup();
+                // Reset terminal fully before exit
+                process.stdout.write('\x1b[?25h'); // show cursor
+                process.stdout.write('\x1b[0m'); // reset colors
                 process.stdout.write('\n');
+                // Ensure raw mode is off and terminal is sane
+                try {
+                    process.stdin.setRawMode(false);
+                }
+                catch { /* */ }
+                try {
+                    process.stdin.pause();
+                }
+                catch { /* */ }
                 process.exit(0);
             }
             // ── Drain window: discard buffered keystrokes ─────────────────────

@@ -18,6 +18,16 @@ import { renderMarkdown } from './ui/markdown';
 import { readInputWithBox, printAIResponseStart, printAIResponseEnd, printThinking, isTTYMode } from './ui/chat-input';
 import { MemoryManager } from './memory/index';
 import { SkillsManager } from './skills/index';
+
+// ── Terminal cleanup on exit ──────────────────────────────────────────────────
+// Ensure raw mode is disabled and terminal is restored on ANY exit
+function cleanupTerminal(): void {
+  try { process.stdin.setRawMode?.(false); } catch { /* */ }
+  try { process.stdout.write('\x1b[?25h\x1b[0m'); } catch { /* */ } // show cursor + reset colors
+}
+process.on('exit', cleanupTerminal);
+process.on('SIGINT', () => { cleanupTerminal(); process.exit(0); });
+process.on('SIGTERM', () => { cleanupTerminal(); process.exit(0); });
 import { TokenTracker } from './tracking/tokens';
 import { ToolRegistry, createDefaultRegistry } from './registry/index';
 import { OpenClawClient } from './openclaw/client';

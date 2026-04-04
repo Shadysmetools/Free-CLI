@@ -55,6 +55,21 @@ const markdown_1 = require("./ui/markdown");
 const chat_input_1 = require("./ui/chat-input");
 const index_2 = require("./memory/index");
 const index_3 = require("./skills/index");
+// ── Terminal cleanup on exit ──────────────────────────────────────────────────
+// Ensure raw mode is disabled and terminal is restored on ANY exit
+function cleanupTerminal() {
+    try {
+        process.stdin.setRawMode?.(false);
+    }
+    catch { /* */ }
+    try {
+        process.stdout.write('\x1b[?25h\x1b[0m');
+    }
+    catch { /* */ } // show cursor + reset colors
+}
+process.on('exit', cleanupTerminal);
+process.on('SIGINT', () => { cleanupTerminal(); process.exit(0); });
+process.on('SIGTERM', () => { cleanupTerminal(); process.exit(0); });
 const tokens_1 = require("./tracking/tokens");
 const index_4 = require("./registry/index");
 const client_1 = require("./openclaw/client");
