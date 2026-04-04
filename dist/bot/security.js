@@ -92,18 +92,33 @@ class SecurityManager {
         this.rateLimiter = new RateLimiter(config.security.rate_limit_per_minute, config.security.rate_limit_burst);
     }
     // ── Access control ────────────────────────────────────────────────────────
-    /** Check if a user is allowed in DMs */
+    /** Check if a user is allowed in DMs. Empty list = open to everyone. */
     isUserAllowed(userId) {
         const allowed = this.config.telegram.allowed_users;
+        // Empty = open access (anyone can use)
         if (allowed.length === 0)
-            return false;
+            return true;
         return allowed.includes(userId);
+    }
+    /** Auto-claim: first user to message becomes admin */
+    autoClaimAdmin(userId) {
+        if (this.config.telegram.allowed_users.length === 0 && this.config.telegram.admin_users.length === 0) {
+            this.config.telegram.allowed_users.push(userId);
+            this.config.telegram.admin_users.push(userId);
+            // Save config with claimed admin
+            try {
+                const { saveBotConfig } = require('./config');
+                saveBotConfig(this.config);
+            }
+            catch { /* non-fatal */ }
+        }
     }
     /** Check if a user is allowed in a specific group */
     isGroupAllowed(groupId, userId) {
         const allowedGroups = this.config.telegram.allowed_groups;
+        // Empty = open access
         if (allowedGroups.length === 0)
-            return false;
+            return true;
         // Check if this group is allowed
         const groupAllowed = allowedGroups.includes('*') ||
             allowedGroups.includes(groupId) ||

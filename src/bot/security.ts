@@ -84,17 +84,32 @@ export class SecurityManager {
 
   // ── Access control ────────────────────────────────────────────────────────
 
-  /** Check if a user is allowed in DMs */
+  /** Check if a user is allowed in DMs. Empty list = open to everyone. */
   isUserAllowed(userId: number): boolean {
     const allowed = this.config.telegram.allowed_users;
-    if (allowed.length === 0) return false;
+    // Empty = open access (anyone can use)
+    if (allowed.length === 0) return true;
     return allowed.includes(userId);
+  }
+
+  /** Auto-claim: first user to message becomes admin */
+  autoClaimAdmin(userId: number): void {
+    if (this.config.telegram.allowed_users.length === 0 && this.config.telegram.admin_users.length === 0) {
+      this.config.telegram.allowed_users.push(userId);
+      this.config.telegram.admin_users.push(userId);
+      // Save config with claimed admin
+      try {
+        const { saveBotConfig } = require('./config');
+        saveBotConfig(this.config);
+      } catch { /* non-fatal */ }
+    }
   }
 
   /** Check if a user is allowed in a specific group */
   isGroupAllowed(groupId: number, userId: number): boolean {
     const allowedGroups = this.config.telegram.allowed_groups;
-    if (allowedGroups.length === 0) return false;
+    // Empty = open access
+    if (allowedGroups.length === 0) return true;
 
     // Check if this group is allowed
     const groupAllowed =

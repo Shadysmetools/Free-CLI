@@ -25,8 +25,10 @@ export declare class SecurityManager {
     private config;
     rateLimiter: RateLimiter;
     constructor(config: BotConfig);
-    /** Check if a user is allowed in DMs */
+    /** Check if a user is allowed in DMs. Empty list = open to everyone. */
     isUserAllowed(userId: number): boolean;
+    /** Auto-claim: first user to message becomes admin */
+    autoClaimAdmin(userId: number): void;
     /** Check if a user is allowed in a specific group */
     isGroupAllowed(groupId: number, userId: number): boolean;
     /** Check if a user is an admin */

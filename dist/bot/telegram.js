@@ -140,6 +140,8 @@ async function createTelegramBot(config) {
         if (ctx.callbackQuery) {
             return next();
         }
+        // Auto-claim: first user becomes admin
+        security.autoClaimAdmin(from.id);
         const access = security.checkAccess(from.id, chat.id, chat.type);
         if (!access.allowed) {
             // Only reply in DMs (not groups, to avoid spam)
