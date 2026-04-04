@@ -21,6 +21,7 @@ export interface FallbackEntry {
 }
 
 export const FREE_FALLBACK_CHAIN: FallbackEntry[] = [
+  // OpenRouter free models (different models may have independent rate limits)
   {
     provider: 'openrouter',
     model: 'openrouter/free',
@@ -29,22 +30,29 @@ export const FREE_FALLBACK_CHAIN: FallbackEntry[] = [
   },
   {
     provider: 'openrouter',
-    model: 'qwen/qwen3.6-plus:free',
-    label: 'OpenRouter (Qwen 3.6 Plus free)',
-    createProvider: () => new OpenRouterProvider('qwen/qwen3.6-plus:free'),
+    model: 'qwen/qwen3-30b-a3b:free',
+    label: 'OpenRouter (Qwen 3 30B free)',
+    createProvider: () => new OpenRouterProvider('qwen/qwen3-30b-a3b:free'),
   },
   {
     provider: 'openrouter',
-    model: 'nvidia/nemotron-3-super-120b-a12b:free',
-    label: 'OpenRouter (NVIDIA Nemotron free)',
-    createProvider: () => new OpenRouterProvider('nvidia/nemotron-3-super-120b-a12b:free'),
+    model: 'mistralai/devstral-small:free',
+    label: 'OpenRouter (Devstral Small free)',
+    createProvider: () => new OpenRouterProvider('mistralai/devstral-small:free'),
   },
   {
-    provider: 'groq',
-    model: 'llama-3.1-8b-instant',
-    label: 'Groq (Llama 8B)',
-    createProvider: () => new GroqProvider('llama-3.1-8b-instant'),
+    provider: 'openrouter',
+    model: 'google/gemma-3-27b-it:free',
+    label: 'OpenRouter (Gemma 3 27B free)',
+    createProvider: () => new OpenRouterProvider('google/gemma-3-27b-it:free'),
   },
+  {
+    provider: 'openrouter',
+    model: 'nvidia/llama-3.1-nemotron-70b-instruct:free',
+    label: 'OpenRouter (Nemotron 70B free)',
+    createProvider: () => new OpenRouterProvider('nvidia/llama-3.1-nemotron-70b-instruct:free'),
+  },
+  // Groq — very generous free tier, different provider = different rate limit
   {
     provider: 'groq',
     model: 'llama-3.3-70b-versatile',
@@ -52,11 +60,19 @@ export const FREE_FALLBACK_CHAIN: FallbackEntry[] = [
     createProvider: () => new GroqProvider('llama-3.3-70b-versatile'),
   },
   {
+    provider: 'groq',
+    model: 'llama-3.1-8b-instant',
+    label: 'Groq (Llama 8B instant)',
+    createProvider: () => new GroqProvider('llama-3.1-8b-instant'),
+  },
+  // Google Gemini — free tier with generous limits
+  {
     provider: 'google',
     model: 'gemini-2.5-flash',
     label: 'Google Gemini 2.5 Flash',
     createProvider: () => new GoogleProvider('gemini-2.5-flash'),
   },
+  // Ollama — local, no rate limits
   {
     provider: 'ollama',
     model: 'qwen2.5-coder:7b',
@@ -145,10 +161,13 @@ export async function completeWithFallback(
 
     // All fallbacks exhausted
     const errMsg = (primaryError instanceof Error ? primaryError.message : String(primaryError));
-    throw new Error(
-      `All providers failed. Primary error: ${errMsg}\n` +
-      `Tip: Set OPENROUTER_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY for free fallback providers.`,
-    );
+    const tips = [];
+    if (!process.env.GROQ_API_KEY) tips.push('GROQ_API_KEY (free at console.groq.com)');
+    if (!process.env.GOOGLE_API_KEY && !process.env.GEMINI_API_KEY) tips.push('GOOGLE_API_KEY (free at aistudio.google.com)');
+    const tipText = tips.length > 0
+      ? `\nTip: Add more free providers with /key:\n  ${tips.join('\n  ')}`
+      : '\nAll configured providers are rate-limited. Wait a moment and try again.';
+    throw new Error(`All providers failed. ${errMsg}${tipText}`);
   }
 }
 
