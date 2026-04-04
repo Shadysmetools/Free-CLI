@@ -107,12 +107,28 @@ function buildBotSystemPrompt(
     ? `\n\nCustom instructions from user: ${customInstructions}`
     : '';
 
+  const capabilitiesBlock = `
+
+BOT CAPABILITIES (what you can do in this Telegram bot):
+- 🎤 Voice/Audio Transcription: Users can send voice messages or audio files — they are auto-transcribed via Whisper/Groq and sent to you as text.
+- 📄 Document Analysis: Users can send text files, code, PDFs — content is extracted and sent to you.
+- 🖼️ Image Analysis: Users can send photos — you can analyze them if the model supports vision.
+- 🔍 Web Search: /search command for DuckDuckGo search.
+- 🌐 URL Fetch: /fetch command to read web pages.
+- 💻 Code Execution: You have shell, file read/write, git tools available.
+- 📊 PDF/Excel Generation: You can generate documents.
+- ⏰ Reminders: /remind command for scheduling.
+- 🔑 API Keys: Users can add keys with /setkey <provider> <key>.
+- 🤖 Model Switching: /model to change AI model.
+
+IMPORTANT: You DO support voice transcription. When a user asks about voice/audio, tell them to just send a voice message or audio file directly in the chat.`;
+
   return buildSystemPrompt({
     cwd,
     projectMemory: undefined,
     memoryContext: memory.getSystemContext(),
     profileContext: '',
-    personaContext: personaBlock + customBlock,
+    personaContext: personaBlock + customBlock + capabilitiesBlock,
   });
 }
 
@@ -427,6 +443,73 @@ export async function createTelegramBot(config: BotConfig): Promise<{
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       await ctx.reply(formatError(`Audio processing failed: ${msg}`), { parse_mode: 'HTML' }).catch(() => {});
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // VIDEO → Transcribe audio track via Groq/Whisper
+  // ─────────────────────────────────────────────────────────────────────────
+
+  bot.on('message:video', async (ctx) => {
+    if (!config.features.voice) {
+      await ctx.reply('🎬 Video processing is disabled.').catch(() => {});
+      return;
+    }
+
+    const video = ctx.message.video;
+    const caption = ctx.message.caption || '';
+
+    await reactToMessage(ctx, bot, '🎬');
+    if (config.ui.typing_indicator) {
+      await ctx.replyWithChatAction('typing').catch(() => {});
+    }
+
+    const interimMsg = await ctx.reply('🎬 Downloading and transcribing video...').catch(() => null);
+
+    try {
+      const fileUrl = await getTelegramFileUrl(bot, video.file_id);
+      const ext = video.mime_type?.includes('mp4') ? 'mp4' : 'mp4';
+      const localPath = await downloadFile(fileUrl, `video_${video.file_unique_id}.${ext}`);
+
+      const settings = loadSettings();
+      const groqKey = settings.providers.groq?.apiKey ?? process.env.GROQ_API_KEY;
+      const transcription = await transcribeAudio(localPath, groqKey);
+
+      if (interimMsg) {
+        const preview = transcription.text.length > 200
+          ? transcription.text.slice(0, 200) + '...'
+          : transcription.text;
+        await bot.api.editMessageText(
+          ctx.chat!.id, interimMsg.message_id,
+          `🎬 <i>Transcribed video (${transcription.method}):</i>\n<blockquote>${escapeHtml(preview)}</blockquote>`,
+          { parse_mode: 'HTML' },
+        ).catch(() => {});
+      }
+
+      if (transcription.method === 'unavailable') {
+        await ctx.reply('⚠️ Video transcription unavailable. Use /setkey groq <key> for free transcription.').catch(() => {});
+        return;
+      }
+
+      // Process transcription as AI message
+      const userMessage = caption
+        ? `[Video transcription]: ${transcription.text}\n\nUser's caption: ${caption}`
+        : `[Video transcription]: ${transcription.text}`;
+
+      if (config.ui.typing_indicator) {
+        await ctx.replyWithChatAction('typing').catch(() => {});
+      }
+
+      await processMessage(ctx, runtime, bot, userMessage);
+
+      // Cleanup
+      fs.unlinkSync(localPath);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (interimMsg) {
+        await bot.api.editMessageText(ctx.chat!.id, interimMsg.message_id,
+          formatError(`Video processing failed: ${msg}`), { parse_mode: 'HTML' }).catch(() => {});
+      }
     }
   });
 
