@@ -12,7 +12,8 @@
  */
 
 import chalk from 'chalk';
-import { loadBotConfig, validateBotConfig, getBotConfigPath } from './config';
+import * as readline from 'readline';
+import { loadBotConfig, validateBotConfig, getBotConfigPath, saveBotConfig, BotConfig } from './config';
 import { createTelegramBot } from './telegram';
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
@@ -28,6 +29,99 @@ function printBotBanner(token: string, provider: string, model: string): void {
   console.log();
 }
 
+// ─── Interactive Setup Wizard ──────────────────────────────────────────────────
+
+async function ask(question: string, defaultVal?: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const suffix = defaultVal ? chalk.dim(` (${defaultVal})`) : '';
+  return new Promise((resolve) => {
+    rl.question(`  ${question}${suffix}: `, (answer) => {
+      rl.close();
+      resolve(answer.trim() || defaultVal || '');
+    });
+  });
+}
+
+async function runSetupWizard(): Promise<BotConfig> {
+  console.log(chalk.bold.cyan('\n  🤖 knowcap-code Bot Setup\n'));
+  console.log(chalk.dim('  Quick setup — you\'ll be running in 30 seconds!\n'));
+
+  // Step 1: Token
+  console.log(chalk.yellow('  Step 1:'), 'Get a bot token from @BotFather on Telegram');
+  console.log(chalk.dim('  Open Telegram → search @BotFather → send /newbot → copy the token\n'));
+  const token = await ask('Paste your bot token');
+
+  if (!token || token.length < 20) {
+    console.log(chalk.red('\n  ❌ Invalid token. Get one from @BotFather first.'));
+    process.exit(1);
+  }
+
+  // Step 2: User ID
+  console.log(chalk.yellow('\n  Step 2:'), 'Your Telegram user ID (for security)');
+  console.log(chalk.dim('  Send /start to @userinfobot on Telegram to get your ID\n'));
+  const userId = await ask('Your Telegram user ID');
+
+  // Step 3: Provider
+  console.log(chalk.yellow('\n  Step 3:'), 'AI Provider');
+  const provider = await ask('Provider', 'openrouter');
+  const model = await ask('Model', 'openrouter/free');
+
+  // Build config
+  const { loadBotConfig: loadDefaults } = await import('./config');
+  const fs = await import('fs');
+  const configPath = getBotConfigPath();
+
+  // Create directory
+  const path = await import('path');
+  const dir = path.dirname(configPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  // Write config
+  const configContent = `# knowcap-code Telegram Bot Configuration
+telegram:
+  token: "${token}"
+  allowed_users: [${userId || ''}]
+  admin_users: [${userId || ''}]
+  allowed_groups: []
+  require_mention: true
+
+provider: ${provider}
+model: "${model}"
+
+features:
+  shell: true
+  files: true
+  web_search: false
+  code_exec: true
+  memory: true
+  voice: true
+  images: true
+  diagrams: true
+  scheduler: true
+  streaming: true
+
+security:
+  sandbox: true
+  sandbox_dir: ~/sandbox
+  max_output: 4000
+  blocked_commands: ["rm -rf /", "sudo", "shutdown", "reboot"]
+  rate_limit_per_minute: 20
+  rate_limit_burst: 5
+
+ui:
+  ack_reaction: "👀"
+  typing_indicator: true
+  chunk_size: 4000
+  stream_edits: true
+  link_previews: true
+`;
+  fs.writeFileSync(configPath, configContent, 'utf-8');
+  console.log(chalk.green(`\n  ✅ Config saved to ${configPath}`));
+  console.log(chalk.dim('  Starting bot...\n'));
+
+  return loadDefaults();
+}
+
 // ─── Sub-commands ─────────────────────────────────────────────────────────────
 
 export async function runBotCommand(subcommand: string, extraArgs: string[]): Promise<void> {
@@ -36,8 +130,7 @@ export async function runBotCommand(subcommand: string, extraArgs: string[]): Pr
     // ── bot init — create default config ──────────────────────────────────
     case 'init':
     case 'setup': {
-      // loadBotConfig() will create the config and exit if it doesn't exist
-      loadBotConfig();
+      await runSetupWizard();
       break;
     }
 
@@ -75,8 +168,36 @@ export async function runBotCommand(subcommand: string, extraArgs: string[]): Pr
     // ── bot start — start the Telegram bot ─────────────────────────────────
     case 'start':
     default: {
-      // Load and validate config
-      const config = loadBotConfig();
+      // Auto-run setup wizard if no config exists
+      const fs = await import('fs');
+      let config: BotConfig;
+      if (!fs.existsSync(getBotConfigPath())) {
+        config = await runSetupWizard();
+      } else {
+        config = loadBotConfig();
+      }
+      // If token is placeholder, ask for it interactively
+      if (!config.telegram.token || config.telegram.token === 'YOUR_BOT_TOKEN_HERE') {
+        console.log(chalk.yellow('\n  ⚠️  No bot token set. Let\'s fix that!\n'));
+        const token = await ask('Paste your bot token from @BotFather');
+        if (!token || token.length < 20) {
+          console.log(chalk.red('  ❌ Invalid token.'));
+          process.exit(1);
+        }
+        config.telegram.token = token;
+
+        if (config.telegram.allowed_users.length === 0) {
+          const userId = await ask('Your Telegram user ID (from @userinfobot)');
+          if (userId) {
+            config.telegram.allowed_users = [parseInt(userId, 10)];
+            config.telegram.admin_users = [parseInt(userId, 10)];
+          }
+        }
+
+        saveBotConfig(config);
+        console.log(chalk.green('  ✅ Config updated!\n'));
+      }
+
       const errors = validateBotConfig(config);
 
       if (errors.length > 0) {

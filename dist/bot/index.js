@@ -50,6 +50,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runBotCommand = runBotCommand;
 const chalk_1 = __importDefault(require("chalk"));
+const readline = __importStar(require("readline"));
 const config_1 = require("./config");
 const telegram_1 = require("./telegram");
 // ─── Banner ───────────────────────────────────────────────────────────────────
@@ -63,14 +64,96 @@ function printBotBanner(token, provider, model) {
     console.log(chalk_1.default.dim(`  Config:   ${(0, config_1.getBotConfigPath)()}`));
     console.log();
 }
+// ─── Interactive Setup Wizard ──────────────────────────────────────────────────
+async function ask(question, defaultVal) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const suffix = defaultVal ? chalk_1.default.dim(` (${defaultVal})`) : '';
+    return new Promise((resolve) => {
+        rl.question(`  ${question}${suffix}: `, (answer) => {
+            rl.close();
+            resolve(answer.trim() || defaultVal || '');
+        });
+    });
+}
+async function runSetupWizard() {
+    console.log(chalk_1.default.bold.cyan('\n  🤖 knowcap-code Bot Setup\n'));
+    console.log(chalk_1.default.dim('  Quick setup — you\'ll be running in 30 seconds!\n'));
+    // Step 1: Token
+    console.log(chalk_1.default.yellow('  Step 1:'), 'Get a bot token from @BotFather on Telegram');
+    console.log(chalk_1.default.dim('  Open Telegram → search @BotFather → send /newbot → copy the token\n'));
+    const token = await ask('Paste your bot token');
+    if (!token || token.length < 20) {
+        console.log(chalk_1.default.red('\n  ❌ Invalid token. Get one from @BotFather first.'));
+        process.exit(1);
+    }
+    // Step 2: User ID
+    console.log(chalk_1.default.yellow('\n  Step 2:'), 'Your Telegram user ID (for security)');
+    console.log(chalk_1.default.dim('  Send /start to @userinfobot on Telegram to get your ID\n'));
+    const userId = await ask('Your Telegram user ID');
+    // Step 3: Provider
+    console.log(chalk_1.default.yellow('\n  Step 3:'), 'AI Provider');
+    const provider = await ask('Provider', 'openrouter');
+    const model = await ask('Model', 'openrouter/free');
+    // Build config
+    const { loadBotConfig: loadDefaults } = await Promise.resolve().then(() => __importStar(require('./config')));
+    const fs = await Promise.resolve().then(() => __importStar(require('fs')));
+    const configPath = (0, config_1.getBotConfigPath)();
+    // Create directory
+    const path = await Promise.resolve().then(() => __importStar(require('path')));
+    const dir = path.dirname(configPath);
+    if (!fs.existsSync(dir))
+        fs.mkdirSync(dir, { recursive: true });
+    // Write config
+    const configContent = `# knowcap-code Telegram Bot Configuration
+telegram:
+  token: "${token}"
+  allowed_users: [${userId || ''}]
+  admin_users: [${userId || ''}]
+  allowed_groups: []
+  require_mention: true
+
+provider: ${provider}
+model: "${model}"
+
+features:
+  shell: true
+  files: true
+  web_search: false
+  code_exec: true
+  memory: true
+  voice: true
+  images: true
+  diagrams: true
+  scheduler: true
+  streaming: true
+
+security:
+  sandbox: true
+  sandbox_dir: ~/sandbox
+  max_output: 4000
+  blocked_commands: ["rm -rf /", "sudo", "shutdown", "reboot"]
+  rate_limit_per_minute: 20
+  rate_limit_burst: 5
+
+ui:
+  ack_reaction: "👀"
+  typing_indicator: true
+  chunk_size: 4000
+  stream_edits: true
+  link_previews: true
+`;
+    fs.writeFileSync(configPath, configContent, 'utf-8');
+    console.log(chalk_1.default.green(`\n  ✅ Config saved to ${configPath}`));
+    console.log(chalk_1.default.dim('  Starting bot...\n'));
+    return loadDefaults();
+}
 // ─── Sub-commands ─────────────────────────────────────────────────────────────
 async function runBotCommand(subcommand, extraArgs) {
     switch (subcommand) {
         // ── bot init — create default config ──────────────────────────────────
         case 'init':
         case 'setup': {
-            // loadBotConfig() will create the config and exit if it doesn't exist
-            (0, config_1.loadBotConfig)();
+            await runSetupWizard();
             break;
         }
         // ── bot status — validate config ───────────────────────────────────────
@@ -103,8 +186,34 @@ async function runBotCommand(subcommand, extraArgs) {
         // ── bot start — start the Telegram bot ─────────────────────────────────
         case 'start':
         default: {
-            // Load and validate config
-            const config = (0, config_1.loadBotConfig)();
+            // Auto-run setup wizard if no config exists
+            const fs = await Promise.resolve().then(() => __importStar(require('fs')));
+            let config;
+            if (!fs.existsSync((0, config_1.getBotConfigPath)())) {
+                config = await runSetupWizard();
+            }
+            else {
+                config = (0, config_1.loadBotConfig)();
+            }
+            // If token is placeholder, ask for it interactively
+            if (!config.telegram.token || config.telegram.token === 'YOUR_BOT_TOKEN_HERE') {
+                console.log(chalk_1.default.yellow('\n  ⚠️  No bot token set. Let\'s fix that!\n'));
+                const token = await ask('Paste your bot token from @BotFather');
+                if (!token || token.length < 20) {
+                    console.log(chalk_1.default.red('  ❌ Invalid token.'));
+                    process.exit(1);
+                }
+                config.telegram.token = token;
+                if (config.telegram.allowed_users.length === 0) {
+                    const userId = await ask('Your Telegram user ID (from @userinfobot)');
+                    if (userId) {
+                        config.telegram.allowed_users = [parseInt(userId, 10)];
+                        config.telegram.admin_users = [parseInt(userId, 10)];
+                    }
+                }
+                (0, config_1.saveBotConfig)(config);
+                console.log(chalk_1.default.green('  ✅ Config updated!\n'));
+            }
             const errors = (0, config_1.validateBotConfig)(config);
             if (errors.length > 0) {
                 console.error(chalk_1.default.red('\n❌ Bot config errors:'));
