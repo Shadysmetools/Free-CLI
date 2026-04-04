@@ -829,20 +829,60 @@ async function handleSlashCommand(input, ctx) {
                 break;
             }
             const resolved = path.resolve(ctx.cwd, filePath);
+            if (!fs.existsSync(resolved)) {
+                (0, terminal_1.printError)(`File not found: ${resolved}`);
+                break;
+            }
             (0, terminal_1.printInfo)(`Transcribing: ${resolved}`);
-            const groqKey = ctx.settings.providers.groq?.apiKey || process.env.GROQ_API_KEY;
+            let groqKey = ctx.settings.providers.groq?.apiKey || process.env.GROQ_API_KEY;
             try {
                 let result;
                 if (groqKey) {
-                    (0, terminal_1.printInfo)('Using Groq Whisper API (free)...');
+                    // Groq Whisper API (free, fast, best quality)
+                    (0, terminal_1.printInfo)('Using Groq Whisper API (whisper-large-v3, free)...');
                     result = await (0, transcribe_1.transcribeViaGroq)(resolved, groqKey);
                 }
                 else {
-                    (0, terminal_1.printInfo)('Using local Whisper...');
-                    result = await (0, transcribe_1.transcribeFile)(resolved, { model: ctx.settings.whisper?.model || 'base' });
+                    // Try local whisper first
+                    try {
+                        (0, terminal_1.printInfo)('Checking for local Whisper...');
+                        result = await (0, transcribe_1.transcribeFile)(resolved, { model: ctx.settings.whisper?.model || 'base' });
+                    }
+                    catch {
+                        // No local whisper — prompt for Groq key
+                        (0, terminal_1.printInfo)('No local Whisper found. Groq offers free transcription (whisper-large-v3).');
+                        (0, terminal_1.printInfo)('Get a free API key at: https://console.groq.com');
+                        const inquirer = (await Promise.resolve().then(() => __importStar(require('inquirer')))).default;
+                        const { key } = await inquirer.prompt([{
+                                type: 'password',
+                                name: 'key',
+                                message: 'Enter your GROQ_API_KEY (free):',
+                                mask: '•',
+                            }]);
+                        if (key && key.trim()) {
+                            groqKey = key.trim();
+                            // Save for future use
+                            process.env.GROQ_API_KEY = groqKey;
+                            ctx.settings.providers.groq = ctx.settings.providers.groq || {};
+                            ctx.settings.providers.groq.apiKey = groqKey;
+                            (0, settings_1.saveSettings)(ctx.settings);
+                            (0, terminal_1.printSuccess)('Groq API key saved! Using Groq Whisper...');
+                            result = await (0, transcribe_1.transcribeViaGroq)(resolved, groqKey);
+                        }
+                        else {
+                            (0, terminal_1.printError)('No API key provided. Get one free at https://console.groq.com');
+                            break;
+                        }
+                    }
                 }
-                (0, terminal_1.printSectionHeader)('Transcript');
-                console.log(result.text);
+                if (result) {
+                    (0, terminal_1.printSectionHeader)('📝 Transcript');
+                    console.log(result.text);
+                    // Also offer to save
+                    const outputPath = resolved.replace(/\.[^.]+$/, '_transcript.txt');
+                    fs.writeFileSync(outputPath, result.text, 'utf-8');
+                    (0, terminal_1.printSuccess)(`Saved to: ${outputPath}`);
+                }
             }
             catch (err) {
                 (0, terminal_1.printError)(err.message);

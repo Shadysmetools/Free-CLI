@@ -37,20 +37,22 @@ export async function transcribeFile(
   const outputPath = path.join(tmpDir, 'output');
 
   try {
-    const args = [
-      filePath,
+    const whisperArgs = [
+      `"${filePath}"`,
       '--model', model,
       '--output_format', outputFormat,
-      '--output_dir', tmpDir,
+      '--output_dir', `"${tmpDir}"`,
       '--fp16', 'False',
     ];
 
     if (language && language !== 'auto') {
-      args.push('--language', language);
+      whisperArgs.push('--language', language);
     }
 
-    child_process.execFileSync(whisperCmd, args, {
-      timeout: 300000, // 5 min
+    // Use execSync for commands like "python3 -m whisper" (shell needed)
+    const fullCmd = `${whisperCmd} ${whisperArgs.join(' ')}`;
+    child_process.execSync(fullCmd, {
+      timeout: 600000, // 10 min for large files
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -126,11 +128,18 @@ export async function transcribeViaGroq(
 }
 
 function detectWhisper(): string | null {
-  const candidates = ['whisper', 'whisper.exe', 'python -m whisper', 'python3 -m whisper'];
+  // Try direct binary first
   for (const cmd of ['whisper', 'whisper.exe']) {
     try {
-      child_process.execFileSync(cmd, ['--help'], { stdio: 'ignore', timeout: 2000 });
+      child_process.execFileSync(cmd, ['--help'], { stdio: 'ignore', timeout: 5000 });
       return cmd;
+    } catch { /* continue */ }
+  }
+  // Try python module (execSync for shell commands with args)
+  for (const py of ['python3', 'python']) {
+    try {
+      child_process.execSync(`${py} -m whisper --help`, { stdio: 'ignore', timeout: 5000 });
+      return `${py} -m whisper`;
     } catch { /* continue */ }
   }
   return null;
