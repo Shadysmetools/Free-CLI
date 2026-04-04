@@ -248,9 +248,7 @@ export function validateBotConfig(config: BotConfig): string[] {
     errors.push('telegram.token is not set. Get a token from @BotFather.');
   }
 
-  if (config.telegram.allowed_users.length === 0) {
-    errors.push('telegram.allowed_users is empty. Set at least one user ID to allow access.');
-  }
+  // allowed_users empty = open to everyone (first user auto-claimed as admin)
 
   if (!config.provider) {
     errors.push('provider is not set.');
