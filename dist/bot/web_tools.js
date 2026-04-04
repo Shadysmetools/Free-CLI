@@ -147,7 +147,7 @@ async function executeWebFetch(url, maxChars = 8000) {
             timeout: 15000,
             maxContentLength: 5 * 1024 * 1024, // 5MB
             headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; coderaw-bot/1.0; +https://github.com/Shadysmetools/knowcap-code)',
+                'User-Agent': 'Mozilla/5.0 (compatible; coderaw-bot/1.0; +https://github.com/Shadysmetools/Free-CLI)',
                 'Accept': 'text/html,application/xhtml+xml,application/xml,text/plain,*/*',
             },
             responseType: 'text',

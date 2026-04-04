@@ -77,8 +77,8 @@ coderaw                      # start interactive session
 ### Install from source
 
 ```bash
-git clone https://github.com/Shadysmetools/knowcap-code.git
-cd knowcap-code
+git clone https://github.com/Shadysmetools/Free-CLI.git
+cd Free-CLI
 npm install
 npm run build
 npm link                     # makes `coderaw`, `cr`, and `kcc` available globally
@@ -103,8 +103,8 @@ npm install -g coderaw
 ### From source
 
 ```bash
-git clone https://github.com/Shadysmetools/knowcap-code.git
-cd knowcap-code
+git clone https://github.com/Shadysmetools/Free-CLI.git
+cd Free-CLI
 npm install
 npm run build          # compiles TypeScript → dist/
 npm link               # optional: installs coderaw/cr/kcc globally
@@ -711,7 +711,7 @@ coderaw/
 
 ## 🤝 Contributing
 
-1. Fork the repo: [github.com/Shadysmetools/knowcap-code](https://github.com/Shadysmetools/knowcap-code)
+1. Fork the repo: [github.com/Shadysmetools/Free-CLI](https://github.com/Shadysmetools/Free-CLI)
 2. Clone your fork
 3. Create a feature branch: `git checkout -b feat/my-feature`
 4. Make changes, then build: `npm run build`
@@ -732,7 +732,7 @@ Create `src/skills/builtins/my-skill/SKILL.md` with your skill instructions.
 ## 📋 Changelog
 
 ### v1.0.0
-- Initial release as **coderaw** (rebranded from knowcap-code)
+- Initial release as **coderaw** (rebranded from knowcap-code to Free-CLI)
 - 24 features across 14 modules
 - CLI commands: `coderaw`, `cr`, `kcc` (backwards compat)
 - Config dir: `~/.coderaw/`
@@ -765,8 +765,8 @@ coderaw is in **active beta**. We ship fast and fix faster.
 
 ### Found a bug? Have an idea?
 
-- 🐛 **Report bugs:** [Open an issue](https://github.com/Shadysmetools/knowcap-code/issues/new?labels=bug&template=bug_report.md)
-- 💡 **Request features:** [Open an issue](https://github.com/Shadysmetools/knowcap-code/issues/new?labels=enhancement&template=feature_request.md)
+- 🐛 **Report bugs:** [Open an issue](https://github.com/Shadysmetools/Free-CLI/issues/new?labels=bug&template=bug_report.md)
+- 💡 **Request features:** [Open an issue](https://github.com/Shadysmetools/Free-CLI/issues/new?labels=enhancement&template=feature_request.md)
 - 🔧 **Fix something:** Fork → Branch → PR (we review fast!)
 
 ### Areas We Need Help
@@ -797,4 +797,4 @@ We respond to all PRs and issues within 24 hours! 🚀
 
 If coderaw helped you, give us a ⭐ on GitHub — it helps others find us!
 
-[![Star on GitHub](https://img.shields.io/github/stars/Shadysmetools/knowcap-code?style=social)](https://github.com/Shadysmetools/knowcap-code)
+[![Star on GitHub](https://img.shields.io/github/stars/Shadysmetools/Free-CLI?style=social)](https://github.com/Shadysmetools/Free-CLI)

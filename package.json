@@ -31,12 +31,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Shadysmetools/knowcap-code.git"
+    "url": "https://github.com/Shadysmetools/Free-CLI.git"
   },
   "bugs": {
-    "url": "https://github.com/Shadysmetools/knowcap-code/issues"
+    "url": "https://github.com/Shadysmetools/Free-CLI/issues"
   },
-  "homepage": "https://github.com/Shadysmetools/knowcap-code#readme",
+  "homepage": "https://github.com/Shadysmetools/Free-CLI#readme",
   "dependencies": {
     "@mermaid-js/mermaid-cli": "^11.12.0",
     "@types/better-sqlite3": "^7.6.13",
