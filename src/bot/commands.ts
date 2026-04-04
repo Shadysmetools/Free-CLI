@@ -68,8 +68,8 @@ export const COMMANDS: BotCommand[] = [
 AI coding assistant in your Telegram. Powered by ${escapeHtml(runtime.config.provider)}/${escapeHtml(runtime.config.model)}.
 
 <b>Conversation:</b>
-  /clear — Clear conversation history
-  /reset — Full reset (back to intro)
+  /clear — Clear chat (keep identity)
+  /reset — Full wipe (back to intro)
   /compact — Summarize old messages
   /stats — Show token usage and costs
 
@@ -145,7 +145,7 @@ Let's set me up real quick — just 3 questions!
   // ── /clear ────────────────────────────────────────────────────────────────
   {
     command: 'clear',
-    description: 'Clear conversation history',
+    description: 'Clear chat history (keeps your identity & settings)',
     async handler(ctx, runtime) {
       const from = ctx.from;
       if (!from) return;
@@ -156,7 +156,9 @@ Let's set me up real quick — just 3 questions!
         runtime.sessions.save(session);
       }
 
-      await reply(ctx, '🗑 Conversation history cleared. Starting fresh!');
+      const soul = runtime.soulManager.getSoul(from.id);
+      const name = soul?.userName || 'there';
+      await reply(ctx, `🗑 Chat cleared, ${escapeHtml(name)}! Your identity & settings are kept. Just start chatting again.`);
     },
   },
 
