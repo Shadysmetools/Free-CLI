@@ -1,0 +1,105 @@
+flowchart TB
+    %% Input Layer
+    subgraph INPUT["🎤 Input Layer"]
+        direction TB
+        I1["💬 Chat Input Box\n(bordered UI)"]
+        I2["/ Slash Commands\n(/help /plan /review)"]
+        I3["⚙️ CLI Flags\n(--provider --model --voice)"]
+        I4["🎙️ Voice Input\n(Whisper)"]
+    end
+
+    %% Core Engine
+    subgraph CORE["⚙️ Core Engine"]
+        direction TB
+        C1["🔄 Agent Loop\n(runAgent)"]
+        C2["💬 Conversation Manager"]
+        C3["🧠 Skill Detector"]
+        C4["📝 Memory System\n(MEMORY.md)"]
+        C5["📊 Token Tracker"]
+    end
+
+    %% AI Providers
+    subgraph PROVIDERS["🤖 AI Providers (auto-fallback)"]
+        direction LR
+        P1["🟢 OpenRouter\n(default)"]
+        P2["🦙 Ollama\n(local)"]
+        P3["⚡ Groq\n(free tier)"]
+        P4["🔵 Google Gemini"]
+        P5["🟠 Anthropic Claude"]
+        P6["🟣 OpenAI GPT"]
+    end
+
+    %% Tool Registry
+    subgraph TOOLS["🛠️ Tool Registry (18 tools)"]
+        direction TB
+        T1["📁 File\nread · write · edit · search · list"]
+        T2["💻 Shell\nrun_command"]
+        T3["🔀 Git\nstatus · diff · commit · log"]
+        T4["🧠 Memory\nsave · search"]
+        T5["📤 Output\nPDF · Excel · Diagram · Image"]
+    end
+
+    %% Sub-Agent System
+    subgraph SUBAGENTS["🤝 Sub-Agent System"]
+        direction TB
+        S1["🎯 Orchestrator"]
+        S2["📋 Planner (/plan)"]
+        S3["👥 Roles\narchitect · coder · reviewer\ntester · debugger · documenter"]
+    end
+
+    %% Features
+    subgraph FEATURES["✨ Features"]
+        direction TB
+        F1["🌍 Persona System\n(10 languages/dialects)"]
+        F2["👤 User Profile + History"]
+        F3["🔍 Agentic RAG + Reranking"]
+        F4["🔌 MCP Protocol Client"]
+        F5["🧩 Plugin System"]
+        F6["🌐 REST API Server"]
+    end
+
+    %% Output Layer
+    subgraph OUTPUT["📤 Output Layer"]
+        direction TB
+        O1["🖥️ Terminal UI\n(chalk, bordered boxes)"]
+        O2["💻 Code Boxes\n(syntax highlighted)"]
+        O3["📄 PDF Generation\n(styled)"]
+        O4["📊 Excel Generation\n(formatted)"]
+        O5["📈 Mermaid Diagrams"]
+    end
+
+    %% Connections
+    INPUT --> CORE
+    CORE --> PROVIDERS
+    CORE --> TOOLS
+    CORE --> SUBAGENTS
+    CORE --> FEATURES
+    PROVIDERS --> CORE
+    TOOLS --> CORE
+    SUBAGENTS --> CORE
+    CORE --> OUTPUT
+
+    %% Styling
+    classDef inputStyle fill:#1565C0,stroke:#0D47A1,color:#ffffff,rx:8
+    classDef coreStyle fill:#2E7D32,stroke:#1B5E20,color:#ffffff,rx:8
+    classDef providerStyle fill:#E65100,stroke:#BF360C,color:#ffffff,rx:8
+    classDef toolStyle fill:#6A1B9A,stroke:#4A148C,color:#ffffff,rx:8
+    classDef subagentStyle fill:#B71C1C,stroke:#7F0000,color:#ffffff,rx:8
+    classDef featureStyle fill:#00695C,stroke:#004D40,color:#ffffff,rx:8
+    classDef outputStyle fill:#1565C0,stroke:#0D47A1,color:#ffffff,rx:8
+
+    class I1,I2,I3,I4 inputStyle
+    class C1,C2,C3,C4,C5 coreStyle
+    class P1,P2,P3,P4,P5,P6 providerStyle
+    class T1,T2,T3,T4,T5 toolStyle
+    class S1,S2,S3 subagentStyle
+    class F1,F2,F3,F4,F5,F6 featureStyle
+    class O1,O2,O3,O4,O5 outputStyle
+
+    style INPUT fill:#0D2137,stroke:#1565C0,color:#90CAF9
+    style CORE fill:#0A2010,stroke:#2E7D32,color:#A5D6A7
+    style PROVIDERS fill:#1A0E00,stroke:#E65100,color:#FFCC80
+    style TOOLS fill:#160820,stroke:#6A1B9A,color:#CE93D8
+    style SUBAGENTS fill:#1A0000,stroke:#B71C1C,color:#EF9A9A
+    style FEATURES fill:#002018,stroke:#00695C,color:#80CBC4
+    style OUTPUT fill:#0D2137,stroke:#1565C0,color:#90CAF9

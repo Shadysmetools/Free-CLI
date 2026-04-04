@@ -1,0 +1,97 @@
+flowchart LR
+    %% User
+    USER(["👤 User"])
+
+    %% Input Processing
+    subgraph INPUT["Input Layer"]
+        direction TB
+        IA["📝 Text / Command"]
+        IB["🎙️ Voice → Whisper"]
+        IC["/ Slash Commands"]
+    end
+
+    %% Core Engine
+    subgraph CORE["Core Engine"]
+        direction TB
+        CA["🔄 runAgent\nAgent Loop"]
+        CB["🧠 Skill Detector"]
+        CC["💬 Conversation\nManager"]
+        CD["📝 Memory\nMEMORY.md"]
+    end
+
+    %% Provider Selection
+    subgraph PSEL["Provider Selection\n(auto-fallback)"]
+        direction TB
+        PA["OpenRouter ← try 1st"]
+        PB["Groq ← fallback 2"]
+        PC["Ollama ← fallback 3"]
+        PD["Gemini / Claude / GPT"]
+    end
+
+    %% AI Processing
+    AI["🤖 AI Response\n(streamed tokens)"]
+
+    %% Tool Execution
+    subgraph TOOLS["Tool Execution"]
+        direction TB
+        TA["📁 File ops"]
+        TB_["💻 Shell cmd"]
+        TC["🔀 Git ops"]
+        TD["📤 Output gen"]
+    end
+
+    %% Sub-agent
+    SAGA["🤝 Sub-Agent\nOrchestrator"]
+
+    %% Output
+    subgraph OUTPUT["Output Layer"]
+        direction TB
+        OA["🖥️ Terminal UI"]
+        OB["📄 PDF / Excel"]
+        OC["📈 Diagrams"]
+    end
+
+    %% Final
+    RESULT(["✅ Result\nto User"])
+
+    %% Flow
+    USER -->|"types / speaks"| INPUT
+    INPUT -->|"parsed request"| CORE
+    CORE -->|"select provider"| PSEL
+    PSEL -->|"API call"| AI
+    AI -->|"response + tool calls"| CORE
+    CORE -->|"tool invocation"| TOOLS
+    CORE -->|"complex task"| SAGA
+    SAGA -->|"sub-task result"| CORE
+    TOOLS -->|"tool result"| CORE
+    CORE -->|"final answer"| OUTPUT
+    OUTPUT -->|"rendered"| RESULT
+    RESULT --> USER
+
+    %% Memory feedback loop
+    CORE <-->|"read/write"| CD
+
+    %% Styling
+    classDef userStyle fill:#1565C0,stroke:#0D47A1,color:#fff,rx:50%
+    classDef coreStyle fill:#1B5E20,stroke:#2E7D32,color:#fff
+    classDef provStyle fill:#BF360C,stroke:#E65100,color:#fff
+    classDef aiStyle fill:#4A148C,stroke:#6A1B9A,color:#fff
+    classDef toolStyle fill:#311B92,stroke:#512DA8,color:#fff
+    classDef outStyle fill:#01579B,stroke:#0277BD,color:#fff
+    classDef resultStyle fill:#1565C0,stroke:#0D47A1,color:#fff,rx:50%
+    classDef subStyle fill:#7F0000,stroke:#B71C1C,color:#fff
+
+    class USER userStyle
+    class CA,CB,CC,CD coreStyle
+    class PA,PB,PC,PD provStyle
+    class AI aiStyle
+    class TA,TB_,TC,TD toolStyle
+    class OA,OB,OC outStyle
+    class RESULT resultStyle
+    class SAGA subStyle
+
+    style INPUT fill:#0D2137,stroke:#1565C0,color:#90CAF9
+    style CORE fill:#0A1F0A,stroke:#2E7D32,color:#A5D6A7
+    style PSEL fill:#1A0C00,stroke:#E65100,color:#FFCC80
+    style TOOLS fill:#0E0A1F,stroke:#512DA8,color:#CE93D8
+    style OUTPUT fill:#0D1F2D,stroke:#0277BD,color:#B3E5FC
