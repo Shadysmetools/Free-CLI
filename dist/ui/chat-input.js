@@ -78,7 +78,14 @@ function drawInputBox(text) {
     const dashes = Math.max(1, inner - label.length - 1);
     const top = chalk_1.default.cyan('┌─' + label + '─'.repeat(dashes) + '┐');
     const maxContent = inner - 2;
-    const vis = text.length > maxContent ? text.slice(text.length - maxContent) : text;
+    let vis;
+    if (text.length > maxContent) {
+        // Show "…" prefix to indicate truncated display (full text still in buffer)
+        vis = '…' + text.slice(text.length - maxContent + 1);
+    }
+    else {
+        vis = text;
+    }
     const mid = chalk_1.default.cyan('│ ') + vis.padEnd(maxContent, ' ') + chalk_1.default.cyan(' │');
     const bot = chalk_1.default.cyan('└' + '─'.repeat(inner) + '┘');
     process.stdout.write(top + '\n' + mid + '\n' + bot);
@@ -171,7 +178,7 @@ function readLineRaw() {
  * This drains any keys the user may have typed while the AI was responding —
  * those are buffered by the kernel and would otherwise fire immediately.
  */
-const DRAIN_MS = 80;
+const DRAIN_MS = 20; // Keep short — 80ms was eating pasted text
 function readLineBoxed() {
     return new Promise((resolve) => {
         let buffer = '';
@@ -268,10 +275,14 @@ function readLineBoxed() {
             ].includes(key.name)) {
                 return;
             }
-            // ── Regular printable character ───────────────────────────────────
+            // ── Regular printable character (or pasted chunk) ────────────────
             if (str && str.length > 0 && !key.ctrl && !key.meta) {
-                buffer += str;
-                redraw();
+                // Pasted text can arrive as multi-char string — append all at once
+                const clean = str.replace(/[\r\n]/g, ''); // strip newlines from paste
+                if (clean.length > 0) {
+                    buffer += clean;
+                    redraw();
+                }
             }
         }
         process.stdin.on('keypress', onKey);
