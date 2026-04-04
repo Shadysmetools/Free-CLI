@@ -54,6 +54,7 @@ AI coding assistant in your Telegram. Powered by ${(0, formatter_1.escapeHtml)(r
 <b>AI Configuration:</b>
   /model [provider:model] — Switch AI model
   /models — List all available models
+  /setkey &lt;provider&gt; &lt;key&gt; — Set API key
   /persona [name] — Change language/persona
   /lang [code] — Quick language switch
 
@@ -204,6 +205,60 @@ Let's set me up real quick — just 3 questions!
             }
             lines.push('<i>Switch: /model provider:model-name</i>');
             await reply(ctx, lines.join('\n'));
+        },
+    },
+    // ── /setkey ─────────────────────────────────────────────────────────────────
+    {
+        command: 'setkey',
+        description: 'Set API key: /setkey <provider> <key>',
+        async handler(ctx, runtime, args) {
+            if (args.length < 2) {
+                const envMap = {
+                    openrouter: process.env.OPENROUTER_API_KEY ? '✅' : '❌',
+                    groq: process.env.GROQ_API_KEY ? '✅' : '❌',
+                    google: (process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY) ? '✅' : '❌',
+                    mistral: process.env.MISTRAL_API_KEY ? '✅' : '❌',
+                    anthropic: process.env.ANTHROPIC_API_KEY ? '✅' : '❌',
+                    openai: process.env.OPENAI_API_KEY ? '✅' : '❌',
+                };
+                const lines = ['<b>🔑 API Keys</b>\n'];
+                for (const [name, status] of Object.entries(envMap)) {
+                    lines.push(`  ${status} ${(0, formatter_1.escapeHtml)(name)}`);
+                }
+                lines.push('\n<b>Usage:</b> <code>/setkey provider api-key</code>');
+                lines.push('\n<b>Providers:</b> openrouter, groq, google, mistral, anthropic, openai');
+                lines.push('\n<b>Free keys:</b>');
+                lines.push('• <a href="https://openrouter.ai/keys">openrouter.ai/keys</a>');
+                lines.push('• <a href="https://console.groq.com">console.groq.com</a>');
+                lines.push('• <a href="https://aistudio.google.com">aistudio.google.com</a>');
+                lines.push('• <a href="https://console.mistral.ai">console.mistral.ai</a>');
+                await reply(ctx, lines.join('\n'));
+                return;
+            }
+            const provider = args[0].toLowerCase();
+            const apiKey = args[1];
+            const envVarMap = {
+                openrouter: 'OPENROUTER_API_KEY',
+                groq: 'GROQ_API_KEY',
+                google: 'GOOGLE_API_KEY',
+                gemini: 'GOOGLE_API_KEY',
+                mistral: 'MISTRAL_API_KEY',
+                anthropic: 'ANTHROPIC_API_KEY',
+                openai: 'OPENAI_API_KEY',
+            };
+            const envVar = envVarMap[provider];
+            if (!envVar) {
+                await reply(ctx, `❌ Unknown provider: <code>${(0, formatter_1.escapeHtml)(provider)}</code>\n\nTry: openrouter, groq, google, mistral, anthropic, openai`);
+                return;
+            }
+            // Set the env var so fallback chain picks it up
+            process.env[envVar] = apiKey;
+            // Delete the message with the key for security
+            try {
+                await ctx.deleteMessage();
+            }
+            catch { /* may not have permission */ }
+            await reply(ctx, `✅ <b>${(0, formatter_1.escapeHtml)(provider)}</b> API key set!\n\n🔒 Your message with the key was deleted for security.`);
         },
     },
     // ── /persona ──────────────────────────────────────────────────────────────
