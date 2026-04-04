@@ -48,6 +48,7 @@ AI coding assistant in your Telegram. Powered by ${(0, formatter_1.escapeHtml)(r
 
 <b>Conversation:</b>
   /clear — Clear conversation history
+  /reset — Full reset (back to intro)
   /compact — Summarize old messages
   /stats — Show token usage and costs
 
@@ -129,6 +130,34 @@ Let's set me up real quick — just 3 questions!
                 runtime.sessions.save(session);
             }
             await reply(ctx, '🗑 Conversation history cleared. Starting fresh!');
+        },
+    },
+    // ── /reset ────────────────────────────────────────────────────────────────
+    {
+        command: 'reset',
+        description: 'Full reset — delete soul, session, memory. Restart from intro.',
+        async handler(ctx, runtime) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            // Delete soul (personality, name, role, language)
+            runtime.soulManager.deleteSoul(from.id);
+            // Delete session (conversation, tokens, prefs)
+            runtime.sessions.delete(from.id, ctx.chat.id);
+            // Clear user memory
+            try {
+                runtime.memory.clear();
+            }
+            catch { /* may not have per-user memory */ }
+            await reply(ctx, `🔄 <b>Full reset complete!</b>
+
+Everything has been wiped:
+• ✅ Soul (name, role, language)
+• ✅ Conversation history
+• ✅ Session preferences
+• ✅ Memory notes
+
+Send any message to start the onboarding again! 👋`);
         },
     },
     // ── /stats / /cost ────────────────────────────────────────────────────────
