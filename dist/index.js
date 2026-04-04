@@ -37,10 +37,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv = __importStar(require("dotenv"));
 dotenv.config();
 const cli_1 = require("./cli");
+const wizard_1 = require("./setup/wizard");
+const terminal_1 = require("./ui/terminal");
 const args = process.argv.slice(2);
 // Parse flags
 const opts = {};
 const positional = [];
+let runSetup = false;
 for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--provider' || arg === '-p') {
@@ -55,15 +58,17 @@ for (let i = 0; i < args.length; i++) {
     else if (arg === '--no-color') {
         opts.noColor = true;
     }
+    else if (arg === '--setup' || arg === 'setup') {
+        runSetup = true;
+    }
     else if (arg === '--version' || arg === '-v') {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const pkg = require('../package.json');
         console.log(`knowcap-code v${pkg.version}`);
         process.exit(0);
     }
     else if (arg === '--help' || arg === '-h') {
-        // Will be printed by startCLI
-        const { printHelp } = require('./ui/terminal');
-        printHelp();
+        (0, terminal_1.printHelp)();
         process.exit(0);
     }
     else if (!arg.startsWith('-')) {
@@ -71,11 +76,33 @@ for (let i = 0; i < args.length; i++) {
     }
 }
 // If positional args given, treat as one-shot query
-if (positional.length > 0) {
+if (positional.length > 0 && positional[0] !== 'setup') {
     opts.oneShot = positional.join(' ');
 }
-// Start
-(0, cli_1.startCLI)(opts).catch(err => {
+async function main() {
+    // `kcc setup` — force re-run wizard
+    if (runSetup || positional[0] === 'setup') {
+        await (0, wizard_1.runSetupWizard)(true);
+        return;
+    }
+    // First run — show setup wizard
+    if (!(0, wizard_1.isSetupComplete)()) {
+        await (0, wizard_1.runSetupWizard)();
+    }
+    else if (!opts.provider) {
+        // Subsequent runs — silently auto-detect best available provider
+        // (overrides default only if current default isn't reachable)
+        const detected = await (0, wizard_1.silentAutoDetect)();
+        if (detected && !opts.provider) {
+            opts.provider = detected.provider;
+            if (!opts.model && detected.model) {
+                opts.model = detected.model;
+            }
+        }
+    }
+    await (0, cli_1.startCLI)(opts);
+}
+main().catch(err => {
     console.error('Fatal error:', err.message);
     process.exit(1);
 });

@@ -15,6 +15,11 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
 }
 
+export interface OpenClawConfig {
+  url: string;
+  token?: string;
+}
+
 export interface Settings {
   defaultProvider: string;
   defaultModel: string;
@@ -31,9 +36,14 @@ export interface Settings {
     model: string;
     language?: string;
   };
+  openclaw?: OpenClawConfig;
+  budget?: number;  // Session budget limit in USD
 }
 
-const CONFIG_DIR = path.join(os.homedir(), '.knowcap-code');
+// Windows: use %APPDATA%\knowcap-code, Unix: ~/.knowcap-code
+const CONFIG_DIR = process.platform === 'win32'
+  ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
+  : path.join(os.homedir(), '.knowcap-code');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
 
 const DEFAULT_SETTINGS: Settings = {

@@ -40,7 +40,10 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const os = __importStar(require("os"));
 const yaml = __importStar(require("yaml"));
-const CONFIG_DIR = path.join(os.homedir(), '.knowcap-code');
+// Windows: use %APPDATA%\knowcap-code, Unix: ~/.knowcap-code
+const CONFIG_DIR = process.platform === 'win32'
+    ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
+    : path.join(os.homedir(), '.knowcap-code');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
 const DEFAULT_SETTINGS = {
     defaultProvider: 'ollama',

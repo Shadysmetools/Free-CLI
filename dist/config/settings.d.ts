@@ -8,6 +8,10 @@ export interface MCPServerConfig {
     args?: string[];
     env?: Record<string, string>;
 }
+export interface OpenClawConfig {
+    url: string;
+    token?: string;
+}
 export interface Settings {
     defaultProvider: string;
     defaultModel: string;
@@ -24,6 +28,8 @@ export interface Settings {
         model: string;
         language?: string;
     };
+    openclaw?: OpenClawConfig;
+    budget?: number;
 }
 export declare function loadSettings(): Settings;
 export declare function saveSettings(settings: Settings): void;

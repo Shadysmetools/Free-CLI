@@ -3,6 +3,8 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { startCLI } from './cli';
+import { runSetupWizard, isSetupComplete, silentAutoDetect } from './setup/wizard';
+import { printHelp } from './ui/terminal';
 
 const args = process.argv.slice(2);
 
@@ -16,6 +18,7 @@ const opts: {
 } = {};
 
 const positional: string[] = [];
+let runSetup = false;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -27,13 +30,14 @@ for (let i = 0; i < args.length; i++) {
     opts.cwd = args[++i];
   } else if (arg === '--no-color') {
     opts.noColor = true;
+  } else if (arg === '--setup' || arg === 'setup') {
+    runSetup = true;
   } else if (arg === '--version' || arg === '-v') {
-    const pkg = require('../package.json');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pkg = require('../package.json') as { version: string };
     console.log(`knowcap-code v${pkg.version}`);
     process.exit(0);
   } else if (arg === '--help' || arg === '-h') {
-    // Will be printed by startCLI
-    const { printHelp } = require('./ui/terminal');
     printHelp();
     process.exit(0);
   } else if (!arg.startsWith('-')) {
@@ -42,12 +46,36 @@ for (let i = 0; i < args.length; i++) {
 }
 
 // If positional args given, treat as one-shot query
-if (positional.length > 0) {
+if (positional.length > 0 && positional[0] !== 'setup') {
   opts.oneShot = positional.join(' ');
 }
 
-// Start
-startCLI(opts).catch(err => {
-  console.error('Fatal error:', err.message);
+async function main(): Promise<void> {
+  // `kcc setup` — force re-run wizard
+  if (runSetup || positional[0] === 'setup') {
+    await runSetupWizard(true);
+    return;
+  }
+
+  // First run — show setup wizard
+  if (!isSetupComplete()) {
+    await runSetupWizard();
+  } else if (!opts.provider) {
+    // Subsequent runs — silently auto-detect best available provider
+    // (overrides default only if current default isn't reachable)
+    const detected = await silentAutoDetect();
+    if (detected && !opts.provider) {
+      opts.provider = detected.provider;
+      if (!opts.model && detected.model) {
+        opts.model = detected.model;
+      }
+    }
+  }
+
+  await startCLI(opts);
+}
+
+main().catch(err => {
+  console.error('Fatal error:', (err as Error).message);
   process.exit(1);
 });

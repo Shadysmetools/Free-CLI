@@ -19,5 +19,11 @@ export declare function addUsage(state: ConversationState, usage: {
 export declare function compactConversation(state: ConversationState): string;
 export declare function clearConversation(state: ConversationState): void;
 export declare function getConversationStats(state: ConversationState): string;
-export declare function buildSystemPrompt(projectMemory: string | null, cwd: string): string;
+export interface SystemPromptOptions {
+    cwd: string;
+    projectMemory?: string | null;
+    memoryContext?: string;
+    skillContext?: string;
+}
+export declare function buildSystemPrompt(projectMemoryOrOptions: string | null | SystemPromptOptions, cwd?: string): string;
 //# sourceMappingURL=conversation.d.ts.map

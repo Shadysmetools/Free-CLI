@@ -63,12 +63,23 @@ function getConversationStats(state) {
     const { totalTokens, promptTokens, completionTokens } = state.totalUsage;
     return `Messages: ${msgs} | Turns: ${state.turnCount} | Tokens: ${totalTokens} (${promptTokens} in, ${completionTokens} out)`;
 }
-function buildSystemPrompt(projectMemory, cwd) {
+function buildSystemPrompt(projectMemoryOrOptions, cwd) {
+    // Support both legacy call signature and new options object
+    let opts;
+    if (typeof projectMemoryOrOptions === 'object' && projectMemoryOrOptions !== null && 'cwd' in projectMemoryOrOptions) {
+        opts = projectMemoryOrOptions;
+    }
+    else {
+        opts = {
+            cwd: cwd ?? process.cwd(),
+            projectMemory: projectMemoryOrOptions,
+        };
+    }
     const date = new Date().toISOString().split('T')[0];
     let prompt = `You are knowcap-code, an expert AI coding assistant. You help with writing, editing, debugging, and understanding code.
 
 Current date: ${date}
-Working directory: ${cwd}
+Working directory: ${opts.cwd}
 
 ## Your Capabilities
 You have access to tools for:
@@ -77,6 +88,7 @@ You have access to tools for:
 - Searching across the codebase
 - Running shell commands
 - Git operations (status, diff, commit)
+- Saving notes to project memory (memory_save, memory_search)
 
 ## How You Work
 1. When asked to modify code, always READ the file first
@@ -85,14 +97,24 @@ You have access to tools for:
 4. Run tests after making changes when asked
 5. Be concise — give code directly, minimal explanation unless asked
 6. If you're unsure about something, use tools to investigate before answering
+7. Save important decisions and patterns to memory using memory_save
 
 ## Code Style
 - Match the existing code style in the project
 - Prefer clean, readable code over clever code
 - Add comments only when the code is non-obvious
 - Handle errors appropriately for the language`;
-    if (projectMemory) {
-        prompt += `\n\n## Project Memory (KNOWCAP.md)\n${projectMemory}`;
+    // Legacy project memory (KNOWCAP.md / CLAUDE.md)
+    if (opts.projectMemory) {
+        prompt += `\n\n## Project Memory (KNOWCAP.md)\n${opts.projectMemory}`;
+    }
+    // New memory system (MEMORY.md)
+    if (opts.memoryContext) {
+        prompt += opts.memoryContext;
+    }
+    // Active skills (injected per-message in core.ts, but can also be base context)
+    if (opts.skillContext) {
+        prompt += opts.skillContext;
     }
     return prompt;
 }

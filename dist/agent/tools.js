@@ -152,6 +152,18 @@ exports.TOOLS = [
             required: ['message'],
         },
     },
+    {
+        name: 'git_log',
+        description: 'Show recent git commit history.',
+        parameters: {
+            type: 'object',
+            properties: {
+                limit: { type: 'number', description: 'Number of commits to show (default: 10)' },
+                file: { type: 'string', description: 'Filter commits by file path (optional)' },
+            },
+            required: [],
+        },
+    },
 ];
 async function executeTool(name, args, cwd) {
     try {
@@ -165,6 +177,7 @@ async function executeTool(name, args, cwd) {
             case 'git_status': return gitStatus(cwd);
             case 'git_diff': return gitDiff(args, cwd);
             case 'git_commit': return gitCommit(args, cwd);
+            case 'git_log': return gitLog(args, cwd);
             default: return { content: `Unknown tool: ${name}`, isError: true };
         }
     }
@@ -270,12 +283,15 @@ function listFiles(args, cwd) {
 function runCommand(args, cwd) {
     const workDir = args.cwd ? resolvePath(args.cwd, cwd) : cwd;
     const timeoutMs = (args.timeout || 30) * 1000;
+    const isWindows = process.platform === 'win32';
     try {
         const result = child_process.execSync(args.command, {
             cwd: workDir,
             encoding: 'utf-8',
             timeout: timeoutMs,
             maxBuffer: 1024 * 1024 * 5, // 5MB
+            // Use cmd.exe on Windows, sh on Unix
+            shell: isWindows ? 'cmd.exe' : '/bin/sh',
         });
         return { content: result || '(no output)' };
     }
@@ -305,6 +321,17 @@ function gitDiff(args, cwd) {
     }
     catch {
         return { content: 'Git diff failed', isError: true };
+    }
+}
+function gitLog(args, cwd) {
+    try {
+        const limit = args.limit ?? 10;
+        const file = args.file ? ` -- "${args.file}"` : '';
+        const result = child_process.execSync(`git log --oneline -${limit}${file}`, { cwd, encoding: 'utf-8', timeout: 5000 });
+        return { content: result || 'No commits found' };
+    }
+    catch {
+        return { content: 'Not a git repository or git error', isError: true };
     }
 }
 function gitCommit(args, cwd) {

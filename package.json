@@ -8,7 +8,7 @@
     "kcc": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/skills/builtins dist/skills/",
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"

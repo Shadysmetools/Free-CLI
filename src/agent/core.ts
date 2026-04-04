@@ -1,10 +1,12 @@
-import { Provider, Message } from '../providers/index';
+import { Provider, Message, Tool } from '../providers/index';
 import { ConversationState, addMessage, addUsage } from './conversation';
 import { TOOLS, executeTool, fileChanges } from './tools';
 import { MCPClient } from '../mcp/client';
-import { Tool } from '../providers/index';
-import { printToolCall, printToolResult, printError } from '../ui/terminal';
-import { renderMarkdown } from '../ui/markdown';
+import { ToolRegistry } from '../registry/index';
+import { MemoryManager } from '../memory/index';
+import { SkillsManager } from '../skills/index';
+import { TokenTracker } from '../tracking/tokens';
+import { printToolCall, printToolResult, printError, printResponseFooter, printWarning } from '../ui/terminal';
 import chalk from 'chalk';
 
 export interface AgentOptions {
@@ -13,6 +15,10 @@ export interface AgentOptions {
   onToken?: (token: string) => void;
   maxIterations?: number;
   mcpClient?: MCPClient;
+  registry?: ToolRegistry;
+  memory?: MemoryManager;
+  skills?: SkillsManager;
+  tokenTracker?: TokenTracker;
 }
 
 export interface AgentResult {
@@ -30,16 +36,57 @@ export async function runAgent(
   userMessage: string,
   options: AgentOptions
 ): Promise<AgentResult> {
-  const { cwd, stream, onToken, maxIterations = 10, mcpClient } = options;
+  const {
+    cwd,
+    stream,
+    onToken,
+    maxIterations = 10,
+    mcpClient,
+    registry,
+    memory,
+    skills,
+    tokenTracker,
+  } = options;
+
+  const turnStart = Date.now();
+
+  // ── Skill injection per-message ──────────────────────────────────────────
+  // Detect relevant skills and inject into this turn's system message
+  if (skills) {
+    const skillCtx = skills.getSkillContext(userMessage);
+    if (skillCtx) {
+      // Inject as a temporary system message for this turn
+      const systemIdx = conversation.messages.findIndex(m => m.role === 'system');
+      const existing = systemIdx >= 0 ? conversation.messages[systemIdx].content : '';
+      if (!existing.includes(skillCtx.slice(0, 40))) {
+        // Only inject if not already present
+        addMessage(conversation, {
+          role: 'system',
+          content: `[Active Skills for this request]${skillCtx}`,
+        });
+      }
+    }
+  }
 
   // Add user message
   addMessage(conversation, { role: 'user', content: userMessage });
 
-  // Get tools (built-in + MCP)
-  const allTools: Tool[] = [...TOOLS];
-  if (mcpClient) {
-    const mcpTools = await mcpClient.getTools();
-    allTools.push(...mcpTools);
+  // ── Build tool list ───────────────────────────────────────────────────────
+  let allTools: Tool[];
+  if (registry) {
+    allTools = registry.getEnabled();
+    // Sync MCP tools into registry if connected
+    if (mcpClient) {
+      const mcpTools = await mcpClient.getTools();
+      registry.registerMCPTools(mcpTools);
+      allTools = registry.getEnabled();
+    }
+  } else {
+    allTools = [...TOOLS];
+    if (mcpClient) {
+      const mcpTools = await mcpClient.getTools();
+      allTools.push(...mcpTools);
+    }
   }
 
   let iterations = 0;
@@ -48,7 +95,6 @@ export async function runAgent(
 
   while (iterations < maxIterations) {
     iterations++;
-
     const doStream = stream && iterations === 1;
 
     let result;
@@ -75,20 +121,19 @@ export async function runAgent(
       totalUsage.total_tokens += result.usage.total_tokens;
     }
 
-    // If streamed, we already printed it
     if (doStream && result.content) {
       process.stdout.write('\n');
     }
 
     lastContent = result.content;
 
-    // No tool calls — we're done
+    // ── No tool calls — done ────────────────────────────────────────────────
     if (!result.tool_calls || result.tool_calls.length === 0) {
       addMessage(conversation, { role: 'assistant', content: result.content });
       break;
     }
 
-    // Has tool calls — process them
+    // ── Has tool calls — process them ───────────────────────────────────────
     const assistantMsg: Message = {
       role: 'assistant',
       content: result.content,
@@ -96,7 +141,6 @@ export async function runAgent(
     };
     addMessage(conversation, assistantMsg);
 
-    // Execute each tool
     for (const toolCall of result.tool_calls) {
       const toolName = toolCall.function.name;
       let toolArgs: Record<string, unknown> = {};
@@ -108,14 +152,31 @@ export async function runAgent(
 
       let toolResult: string;
       try {
-        // Check if it's an MCP tool
-        if (mcpClient && await mcpClient.hasTool(toolName)) {
+        // Memory tools (intercepted before executeTool)
+        if (memory && toolName === 'memory_search') {
+          const query = String(toolArgs.query ?? '');
+          const results = memory.search(query);
+          if (results.length === 0) {
+            toolResult = 'No memory entries found matching that query.';
+          } else {
+            toolResult = results.map(r => `${r.file}:${r.line}  ${r.content}`).join('\n');
+          }
+        } else if (memory && toolName === 'memory_save') {
+          const note = String(toolArgs.note ?? '');
+          const category = toolArgs.category ? String(toolArgs.category) : 'Notes';
+          memory.save(note, category);
+          toolResult = `✓ Saved to MEMORY.md under "${category}"`;
+        }
+        // MCP tools
+        else if (mcpClient && await mcpClient.hasTool(toolName)) {
           const mcpResult = await mcpClient.callTool(toolName, toolArgs);
           toolResult = mcpResult.content;
-        } else {
-          const result = await executeTool(toolName, toolArgs, cwd);
-          toolResult = result.content;
-          if (result.isError) {
+        }
+        // Built-in tools
+        else {
+          const execResult = await executeTool(toolName, toolArgs, cwd);
+          toolResult = execResult.content;
+          if (execResult.isError) {
             toolResult = `ERROR: ${toolResult}`;
           }
         }
@@ -132,9 +193,31 @@ export async function runAgent(
         name: toolName,
       });
     }
+  }
 
-    // Continue the loop to get next response
+  // ── Track tokens ──────────────────────────────────────────────────────────
+  if (tokenTracker && totalUsage.total_tokens > 0) {
+    const durationMs = Date.now() - turnStart;
+    const entry = tokenTracker.track(totalUsage, provider.name, provider.model, durationMs);
+    const tokenLine = tokenTracker.formatResponseLine(entry);
+    printResponseFooter(provider.name, provider.model, tokenLine);
+
+    // Budget check
+    const budget = tokenTracker.checkBudget();
+    if (budget.message) {
+      printWarning(budget.message);
+    }
+  }
+
+  // ── Auto-save to session log ──────────────────────────────────────────────
+  if (memory && lastContent) {
+    try {
+      memory.appendToday(`**User:** ${userMessage.slice(0, 200)}\n\n**AI:** ${lastContent.slice(0, 500)}`);
+    } catch { /* non-fatal */ }
   }
 
   return { content: lastContent, usage: totalUsage };
 }
+
+// Re-export fileChanges for /undo command
+export { fileChanges };
