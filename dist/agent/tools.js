@@ -364,12 +364,20 @@ function searchFiles(args, cwd) {
     const searchPath = args.path ? resolvePath(args.path, cwd) : cwd;
     const caseSensitive = args.case_sensitive === 'true';
     try {
-        let cmd = `grep -r${caseSensitive ? '' : 'i'} --include="*" -n -l`;
-        if (args.file_pattern)
-            cmd = `grep -r${caseSensitive ? '' : 'i'} --include="${args.file_pattern}" -n`;
-        else
-            cmd = `grep -r${caseSensitive ? '' : 'i'} -n --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist`;
-        cmd += ` "${args.pattern.replace(/"/g, '\\"')}" "${searchPath}" 2>/dev/null | head -50`;
+        const isWin = process.platform === 'win32';
+        let cmd;
+        if (isWin) {
+            // Windows: use findstr
+            const flag = caseSensitive ? '' : '/I';
+            cmd = `findstr /S /N ${flag} "${args.pattern}" "${searchPath}\\*"`;
+        }
+        else {
+            if (args.file_pattern)
+                cmd = `grep -r${caseSensitive ? '' : 'i'} --include="${args.file_pattern}" -n`;
+            else
+                cmd = `grep -r${caseSensitive ? '' : 'i'} -n --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist`;
+            cmd += ` "${args.pattern.replace(/"/g, '\\"')}" "${searchPath}" 2>/dev/null | head -50`;
+        }
         const result = child_process.execSync(cmd, { encoding: 'utf-8', timeout: 10000 });
         return { content: result || 'No matches found' };
     }

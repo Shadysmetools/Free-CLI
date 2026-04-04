@@ -116,7 +116,10 @@ class OpenClawClient {
     // ─── Cron (via CLI) ────────────────────────────────────────────────────────
     listCronJobs() {
         try {
-            const raw = child_process.execSync('openclaw cron list --json 2>/dev/null || openclaw cron list', {
+            const cronCmd = process.platform === 'win32'
+                ? 'openclaw cron list --json'
+                : 'openclaw cron list --json 2>/dev/null || openclaw cron list';
+            const raw = child_process.execSync(cronCmd, {
                 encoding: 'utf-8',
                 timeout: 8000,
             });

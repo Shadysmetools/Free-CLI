@@ -95,7 +95,8 @@ function findMmdc() {
     }
     // Last resort: rely on PATH
     try {
-        child_process.execSync('which mmdc', { stdio: 'ignore' });
+        const whichCmd = process.platform === 'win32' ? 'where mmdc' : 'which mmdc';
+        child_process.execSync(whichCmd, { stdio: 'ignore' });
         return 'mmdc';
     }
     catch {

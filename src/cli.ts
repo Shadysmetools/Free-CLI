@@ -1019,7 +1019,8 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
         const filePath = ProfileManager.profilePath();
         printInfo(`Profile file: ${filePath}`);
         try {
-          child_process.execSync(`${process.env.EDITOR || 'nano'} "${filePath}"`, { stdio: 'inherit' });
+          const defaultEditor = process.platform === 'win32' ? 'notepad' : 'nano';
+          child_process.execSync(`${process.env.EDITOR || defaultEditor} "${filePath}"`, { stdio: 'inherit' });
           ctx.onSystemUpdate();
           printSuccess('Profile saved.');
         } catch { printInfo('Open the file manually to edit it.'); }

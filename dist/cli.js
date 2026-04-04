@@ -1061,7 +1061,8 @@ async function handleSlashCommand(input, ctx) {
                 const filePath = index_6.ProfileManager.profilePath();
                 (0, terminal_1.printInfo)(`Profile file: ${filePath}`);
                 try {
-                    child_process.execSync(`${process.env.EDITOR || 'nano'} "${filePath}"`, { stdio: 'inherit' });
+                    const defaultEditor = process.platform === 'win32' ? 'notepad' : 'nano';
+                    child_process.execSync(`${process.env.EDITOR || defaultEditor} "${filePath}"`, { stdio: 'inherit' });
                     ctx.onSystemUpdate();
                     (0, terminal_1.printSuccess)('Profile saved.');
                 }
