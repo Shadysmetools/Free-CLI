@@ -55,6 +55,7 @@ const session_1 = require("./session");
 const security_1 = require("./security");
 const tools_1 = require("./tools");
 const scheduler_1 = require("./scheduler");
+const soul_1 = require("./soul");
 const index_1 = require("../memory/index");
 const index_2 = require("../skills/index");
 const tokens_1 = require("../tracking/tokens");
@@ -63,6 +64,7 @@ const settings_1 = require("../config/settings");
 const conversation_1 = require("../agent/conversation");
 const core_1 = require("../agent/core");
 const formatter_1 = require("./formatter");
+const keyboards_1 = require("./keyboards");
 const media_1 = require("./media");
 const commands_1 = require("./commands");
 // ─── Helper: resolve provider for a user session ─────────────────────────────
@@ -76,8 +78,13 @@ function resolveProvider(session, config) {
     }
     return { provider: (0, index_3.createProvider)(providerName, settings), providerName, modelName };
 }
-// ─── Helper: build system prompt with persona ─────────────────────────────────
+// ─── Helper: build system prompt with persona / soul ─────────────────────────
 function buildBotSystemPrompt(session, cwd, memory) {
+    // If session has a soul system prompt override, use it (+ memory context)
+    if (session?.systemPrompt) {
+        const memCtx = memory.getSystemContext();
+        return session.systemPrompt + (memCtx ? `\n\n${memCtx}` : '');
+    }
     const persona = session?.profile.prefs.persona;
     const customInstructions = session?.profile.prefs.custom_instructions;
     const personaBlock = persona && persona !== 'english'
@@ -109,9 +116,10 @@ async function createTelegramBot(config) {
     const scheduler = new scheduler_1.BotScheduler(config.scheduler);
     const memory = new index_1.MemoryManager(process.cwd());
     const skills = new index_2.SkillsManager(process.cwd());
+    const soulManager = new soul_1.SoulManager();
     skills.loadAll();
     const runtime = {
-        config, sessions, security, toolBridge, scheduler, memory, skills,
+        config, sessions, security, toolBridge, scheduler, memory, skills, soulManager,
     };
     // ── Create bot ─────────────────────────────────────────────────────────────
     const bot = new grammy_1.Bot(config.telegram.token);
@@ -155,6 +163,20 @@ async function createTelegramBot(config) {
         const from = ctx.from;
         const chat = ctx.chat;
         const text = ctx.message.text;
+        const { soulManager } = runtime;
+        // ── Onboarding intercept (non-command messages only) ──────────────────
+        if (!text.startsWith('/')) {
+            // If user is mid-onboarding, route to onboarding handler
+            if (soulManager.isOnboarding(from.id)) {
+                await handleOnboardingInput(ctx, runtime, bot, text);
+                return;
+            }
+            // First-time user with no soul → start onboarding
+            if (!soulManager.hasSoul(from.id)) {
+                await startOnboarding(ctx, runtime, bot);
+                return;
+            }
+        }
         // ── Slash command routing ─────────────────────────────────────────────
         if (text.startsWith('/')) {
             const parts = text.slice(1).split(/[\s@]+/);
@@ -378,6 +400,17 @@ async function createTelegramBot(config) {
             }
         }
         await ctx.answerCallbackQuery().catch(() => { }); // Dismiss loading indicator
+        // ── Soul/onboarding callbacks ─────────────────────────────────────────
+        if (data.startsWith('soul:role:')) {
+            const roleId = data.slice('soul:role:'.length);
+            await handleSoulRoleCallback(ctx, runtime, bot, from.id, roleId);
+            return;
+        }
+        if (data.startsWith('soul:lang:')) {
+            const langId = data.slice('soul:lang:'.length);
+            await handleSoulLangCallback(ctx, runtime, bot, from.id, langId);
+            return;
+        }
         // Route callbacks
         if (data.startsWith('model:set:')) {
             const spec = data.slice('model:set:'.length);
@@ -700,6 +733,157 @@ async function reactToMessage(ctx, bot, emoji) {
         });
     }
     catch { /* Reactions may not be supported in all contexts */ }
+}
+// ─── Onboarding flow ─────────────────────────────────────────────────────────
+/**
+ * Start the first-time onboarding flow.
+ * Asks: name → role (keyboard) → language (keyboard) → bot name
+ */
+async function startOnboarding(ctx, runtime, bot) {
+    const from = ctx.from;
+    const chat = ctx.chat;
+    const { soulManager } = runtime;
+    soulManager.startOnboarding(from.id);
+    const firstName = from.first_name ?? 'there';
+    await bot.api.sendMessage(chat.id, `👋 <b>Hey ${(0, formatter_1.escapeHtml)(firstName)}! I'm your new AI assistant.</b>\n\nLet's set me up real quick — just 3 questions!\n\n<b>First: What should I call you?</b>\n<i>(Just type your name or nickname)</i>`, { parse_mode: 'HTML' }).catch(() => { });
+}
+/**
+ * Handle text input during onboarding steps.
+ */
+async function handleOnboardingInput(ctx, runtime, bot, text) {
+    const from = ctx.from;
+    const chat = ctx.chat;
+    const { soulManager } = runtime;
+    const state = soulManager.getOnboardingState(from.id);
+    if (!state)
+        return;
+    switch (state.step) {
+        case 'ask_name': {
+            const userName = text.trim().slice(0, 40) || from.first_name || 'friend';
+            soulManager.advanceOnboarding(from.id, { userName }, 'ask_role');
+            await bot.api.sendMessage(chat.id, `Nice to meet you, <b>${(0, formatter_1.escapeHtml)(userName)}</b>! 🎉\n\n<b>What should I be?</b> Pick my role:`, { parse_mode: 'HTML', reply_markup: (0, keyboards_1.roleKeyboard)() }).catch(() => { });
+            break;
+        }
+        case 'ask_role': {
+            // User typed a role instead of using the keyboard
+            const roleInput = text.trim().toLowerCase();
+            const resolved = (0, soul_1.resolveSoulRole)(roleInput);
+            if (!resolved) {
+                await bot.api.sendMessage(chat.id, `Please pick a role from the buttons below, or type one of:\ncoding, research, general, devops, data, creative`, { parse_mode: 'HTML', reply_markup: (0, keyboards_1.roleKeyboard)() }).catch(() => { });
+                return;
+            }
+            await handleSoulRoleCallback(ctx, runtime, bot, from.id, resolved);
+            break;
+        }
+        case 'ask_language': {
+            // User typed a language
+            const langInput = text.trim().toLowerCase();
+            const resolved = (0, soul_1.resolveSoulLanguage)(langInput);
+            if (!resolved) {
+                await bot.api.sendMessage(chat.id, `Please pick a language from the buttons, or type: english, egyptian, franco, arabic, french, spanish, german, turkish, auto`, { parse_mode: 'HTML', reply_markup: (0, keyboards_1.languageKeyboard)() }).catch(() => { });
+                return;
+            }
+            await handleSoulLangCallback(ctx, runtime, bot, from.id, resolved);
+            break;
+        }
+        case 'ask_bot_name': {
+            const botName = text.trim().slice(0, 50) || 'coderaw';
+            await finishOnboarding(ctx, runtime, bot, from.id, chat.id, botName);
+            break;
+        }
+        default:
+            break;
+    }
+}
+/**
+ * Handle role selection callback (soul:role:*)
+ */
+async function handleSoulRoleCallback(ctx, runtime, bot, userId, roleId) {
+    const chat = ctx.chat;
+    const { soulManager } = runtime;
+    const roleDef = soul_1.ROLE_DEFS[roleId] ?? soul_1.ROLE_DEFS.general;
+    // If not onboarding, this is a role change
+    if (!soulManager.isOnboarding(userId)) {
+        const updated = soulManager.updateSoul(userId, {
+            role: roleId,
+            capabilities: roleDef.capabilities,
+        });
+        if (!updated)
+            return;
+        const session = runtime.sessions.get(userId, chat.id);
+        if (session) {
+            session.systemPrompt = updated.systemPrompt;
+            runtime.sessions.save(session);
+        }
+        await ctx.editMessageText(`✅ Role changed to ${roleDef.emoji} <b>${(0, formatter_1.escapeHtml)(roleDef.label)}</b>\n\n<i>${(0, formatter_1.escapeHtml)(roleDef.shortDesc)}</i>`, { parse_mode: 'HTML' }).catch(() => { });
+        return;
+    }
+    // During onboarding: advance to ask_language
+    soulManager.advanceOnboarding(userId, { role: roleId }, 'ask_language');
+    // Edit the role selection message to show what was chosen
+    await ctx.editMessageText(`${roleDef.emoji} <b>${(0, formatter_1.escapeHtml)(roleDef.label)}</b> — got it!\n\n<i>${(0, formatter_1.escapeHtml)(roleDef.shortDesc)}</i>`, { parse_mode: 'HTML' }).catch(() => { });
+    // Send language question
+    await bot.api.sendMessage(chat.id, `<b>What language should I speak?</b>`, { parse_mode: 'HTML', reply_markup: (0, keyboards_1.languageKeyboard)() }).catch(() => { });
+}
+/**
+ * Handle language selection callback (soul:lang:*)
+ */
+async function handleSoulLangCallback(ctx, runtime, bot, userId, langId) {
+    const chat = ctx.chat;
+    const { soulManager } = runtime;
+    const langDef = soul_1.LANGUAGE_DEFS[langId] ?? soul_1.LANGUAGE_DEFS.english;
+    // If not onboarding, this is a language change
+    if (!soulManager.isOnboarding(userId)) {
+        const updated = soulManager.updateSoul(userId, { language: langId });
+        if (!updated)
+            return;
+        const session = runtime.sessions.get(userId, chat.id);
+        if (session) {
+            session.systemPrompt = updated.systemPrompt;
+            runtime.sessions.save(session);
+        }
+        await ctx.editMessageText(`✅ Language changed to ${langDef.flag} <b>${(0, formatter_1.escapeHtml)(langDef.label)}</b>`, { parse_mode: 'HTML' }).catch(() => { });
+        return;
+    }
+    // During onboarding: advance to ask_bot_name
+    soulManager.advanceOnboarding(userId, { language: langId }, 'ask_bot_name');
+    // Edit language message
+    await ctx.editMessageText(`${langDef.flag} <b>${(0, formatter_1.escapeHtml)(langDef.label)}</b> — perfect!`, { parse_mode: 'HTML' }).catch(() => { });
+    // Ask for bot name
+    const state = soulManager.getOnboardingState(userId);
+    const roleDef = soul_1.ROLE_DEFS[state?.data.role ?? 'general'];
+    await bot.api.sendMessage(chat.id, `Almost done! 🎯\n\n<b>What should I call myself?</b>\n\nI'll be your <i>${(0, formatter_1.escapeHtml)(roleDef.label)}</i> in ${langDef.flag} ${(0, formatter_1.escapeHtml)(langDef.label)}.\n\nGive me a name or just send <code>skip</code> and I'll go by <b>coderaw</b>.`, { parse_mode: 'HTML' }).catch(() => { });
+}
+/**
+ * Complete onboarding, save soul, send welcome message.
+ */
+async function finishOnboarding(ctx, runtime, bot, userId, chatId, botNameInput) {
+    const { soulManager, sessions, config } = runtime;
+    const botName = botNameInput.toLowerCase() === 'skip' ? 'coderaw' : botNameInput;
+    // Advance state with bot name then complete
+    soulManager.advanceOnboarding(userId, { botName }, 'done');
+    const soul = soulManager.completeOnboarding(userId);
+    if (!soul) {
+        await bot.api.sendMessage(chatId, '❌ Setup failed. Please try /start again.', {}).catch(() => { });
+        return;
+    }
+    // Create/update session with soul system prompt
+    const from = ctx.from;
+    const session = sessions.getOrCreate(userId, chatId, { username: from.username, first_name: from.first_name }, config.provider, config.model);
+    session.systemPrompt = soul.systemPrompt;
+    sessions.save(session);
+    const roleDef = soul_1.ROLE_DEFS[soul.role];
+    const langDef = soul_1.LANGUAGE_DEFS[soul.language];
+    const capLines = soul.capabilities.slice(0, 4).join('\n');
+    await bot.api.sendMessage(chatId, `🎉 <b>Setup complete!</b>
+
+I'm <b>${(0, formatter_1.escapeHtml)(soul.botName)}</b>, your ${(0, formatter_1.escapeHtml)(roleDef.emoji)} ${(0, formatter_1.escapeHtml)(roleDef.label)}.
+Speaking: ${langDef.flag} ${(0, formatter_1.escapeHtml)(langDef.label)}
+
+<b>Here's what I can do:</b>
+${(0, formatter_1.escapeHtml)(capLines)}
+
+<b>Ask me anything!</b> Type /help for commands.`, { parse_mode: 'HTML' }).catch(() => { });
 }
 // ─── Help sections ────────────────────────────────────────────────────────────
 async function handleHelpSection(ctx, runtime, section) {

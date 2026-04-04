@@ -13,6 +13,13 @@ import { ToolRegistry, createDefaultRegistry } from '../registry/index';
 import { BotConfig } from './config';
 import { SecurityManager } from './security';
 import { truncateOutput } from './formatter';
+import {
+  WEB_TOOL_DEFS,
+  executeWebSearch,
+  executeWebFetch,
+  executeApiCall,
+  ApiCallArgs,
+} from './web_tools';
 
 // ─── Tool Bridge ──────────────────────────────────────────────────────────────
 
@@ -25,7 +32,17 @@ export class BotToolBridge {
     this.config = config;
     this.security = security;
     this.registry = createDefaultRegistry();
+    this.registerWebTools();
     this.applyFeatureFlags();
+  }
+
+  // ── Web tool registration ──────────────────────────────────────────────────
+
+  private registerWebTools(): void {
+    for (const def of WEB_TOOL_DEFS) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.registry.register(def as any, 'custom', 'custom');
+    }
   }
 
   // ── Feature flag enforcement ───────────────────────────────────────────────
@@ -93,6 +110,35 @@ export class BotToolBridge {
             args[key] = this.security.sandboxPath(args[key]);
           }
         }
+      }
+    }
+
+    // ── Web tools — handled directly (not in agent/tools.ts) ─────────────────
+    if (toolName === 'web_search') {
+      try {
+        const result = await executeWebSearch(String(args.query ?? ''));
+        return { content: truncateOutput(result.content, this.config.security.max_output), isError: result.isError ?? false };
+      } catch (err) {
+        return { content: `web_search error: ${err instanceof Error ? err.message : String(err)}`, isError: true };
+      }
+    }
+
+    if (toolName === 'web_fetch') {
+      try {
+        const maxChars = typeof args.max_chars === 'number' ? args.max_chars : 8000;
+        const result = await executeWebFetch(String(args.url ?? ''), maxChars);
+        return { content: truncateOutput(result.content, this.config.security.max_output), isError: result.isError ?? false };
+      } catch (err) {
+        return { content: `web_fetch error: ${err instanceof Error ? err.message : String(err)}`, isError: true };
+      }
+    }
+
+    if (toolName === 'api_call') {
+      try {
+        const result = await executeApiCall(args as ApiCallArgs);
+        return { content: truncateOutput(result.content, this.config.security.max_output), isError: result.isError ?? false };
+      } catch (err) {
+        return { content: `api_call error: ${err instanceof Error ? err.message : String(err)}`, isError: true };
       }
     }
 

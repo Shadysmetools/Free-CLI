@@ -15,6 +15,7 @@ export declare class BotToolBridge {
     private security;
     registry: ToolRegistry;
     constructor(config: BotConfig, security: SecurityManager);
+    private registerWebTools;
     private applyFeatureFlags;
     /**
      * Execute a tool call with security checks applied.

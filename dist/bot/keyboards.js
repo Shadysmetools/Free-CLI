@@ -22,6 +22,10 @@ exports.schedulerKeyboard = schedulerKeyboard;
 exports.paginationKeyboard = paginationKeyboard;
 exports.adminKeyboard = adminKeyboard;
 exports.cancelKeyboard = cancelKeyboard;
+exports.roleKeyboard = roleKeyboard;
+exports.languageKeyboard = languageKeyboard;
+exports.languageChangeKeyboard = languageChangeKeyboard;
+exports.roleChangeKeyboard = roleChangeKeyboard;
 const grammy_1 = require("grammy");
 // ─── Confirmation keyboards ───────────────────────────────────────────────────
 /** Yes/No confirmation keyboard */
@@ -163,5 +167,54 @@ function adminKeyboard() {
 /** Cancel keyboard — single button */
 function cancelKeyboard(data = 'cancel') {
     return new grammy_1.InlineKeyboard().text('🚫 Cancel', data);
+}
+// ─── Onboarding keyboards ─────────────────────────────────────────────────────
+/** Role selection keyboard for onboarding */
+function roleKeyboard() {
+    return new grammy_1.InlineKeyboard()
+        .text('🧑‍💻 Coding Assistant', 'soul:role:coding').row()
+        .text('📚 Research Assistant', 'soul:role:research').row()
+        .text('🤖 General AI', 'soul:role:general').row()
+        .text('🛠️ DevOps Bot', 'soul:role:devops').row()
+        .text('📊 Data Analyst', 'soul:role:data').row()
+        .text('🎨 Creative Assistant', 'soul:role:creative');
+}
+/** Language selection keyboard for onboarding */
+function languageKeyboard() {
+    return new grammy_1.InlineKeyboard()
+        .text('🇬🇧 English', 'soul:lang:english').row()
+        .text('🇪🇬 Egyptian Arabic (عامية)', 'soul:lang:egyptian').row()
+        .text('🔤 Franco/Arabizi (3araby)', 'soul:lang:franco').row()
+        .text('🇸🇦 Arabic (فصحى)', 'soul:lang:arabic').row()
+        .text('🇫🇷 French', 'soul:lang:french')
+        .text('🇪🇸 Spanish', 'soul:lang:spanish').row()
+        .text('🇩🇪 German', 'soul:lang:german')
+        .text('🇹🇷 Turkish', 'soul:lang:turkish').row()
+        .text('🌍 Auto-detect', 'soul:lang:auto');
+}
+/** Language change keyboard (same as onboarding, different prefix context) */
+function languageChangeKeyboard(current) {
+    const mark = (lang) => current === lang ? '✓ ' : '';
+    return new grammy_1.InlineKeyboard()
+        .text(`${mark('english')}🇬🇧 English`, 'soul:lang:english').row()
+        .text(`${mark('egyptian')}🇪🇬 Egyptian Arabic`, 'soul:lang:egyptian').row()
+        .text(`${mark('franco')}🔤 Franco/Arabizi`, 'soul:lang:franco').row()
+        .text(`${mark('arabic')}🇸🇦 Arabic (فصحى)`, 'soul:lang:arabic').row()
+        .text(`${mark('french')}🇫🇷 French`, 'soul:lang:french')
+        .text(`${mark('spanish')}🇪🇸 Spanish`, 'soul:lang:spanish').row()
+        .text(`${mark('german')}🇩🇪 German`, 'soul:lang:german')
+        .text(`${mark('turkish')}🇹🇷 Turkish`, 'soul:lang:turkish').row()
+        .text(`${mark('auto')}🌍 Auto-detect`, 'soul:lang:auto');
+}
+/** Role change keyboard */
+function roleChangeKeyboard(current) {
+    const mark = (role) => current === role ? '✓ ' : '';
+    return new grammy_1.InlineKeyboard()
+        .text(`${mark('coding')}🧑‍💻 Coding`, 'soul:role:coding')
+        .text(`${mark('research')}📚 Research`, 'soul:role:research').row()
+        .text(`${mark('general')}🤖 General`, 'soul:role:general')
+        .text(`${mark('devops')}🛠️ DevOps`, 'soul:role:devops').row()
+        .text(`${mark('data')}📊 Data`, 'soul:role:data')
+        .text(`${mark('creative')}🎨 Creative`, 'soul:role:creative');
 }
 //# sourceMappingURL=keyboards.js.map

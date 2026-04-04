@@ -14,6 +14,8 @@ exports.findCommand = findCommand;
 exports.getCommandList = getCommandList;
 const formatter_1 = require("./formatter");
 const keyboards_1 = require("./keyboards");
+const soul_1 = require("./soul");
+const web_tools_1 = require("./web_tools");
 const scheduler_1 = require("./scheduler");
 const index_1 = require("../providers/index");
 // ─── Safe send helper ─────────────────────────────────────────────────────────
@@ -86,19 +88,30 @@ Just send any message to chat with the AI! 💬`;
         description: 'Start the bot',
         async handler(ctx, runtime) {
             const from = ctx.from;
-            const name = from?.first_name ?? 'there';
-            const model = runtime.config.model;
-            await reply(ctx, `👋 <b>Hello, ${(0, formatter_1.escapeHtml)(name)}!</b>
+            if (!from)
+                return;
+            // If user already has a soul, show a welcome back message
+            const soul = runtime.soulManager.getSoul(from.id);
+            if (soul) {
+                const roleDef = soul_1.ROLE_DEFS[soul.role];
+                await reply(ctx, `👋 <b>Welcome back, ${(0, formatter_1.escapeHtml)(soul.userName)}!</b>
 
-I'm your AI coding assistant. Send me any question, code snippet, or task.
+I'm <b>${(0, formatter_1.escapeHtml)(soul.botName)}</b>, your ${roleDef.emoji} ${(0, formatter_1.escapeHtml)(roleDef.label)}.
 
-<b>Model:</b> <code>${(0, formatter_1.escapeHtml)(model)}</code>
-<b>Features:</b> ${Object.entries(runtime.config.features)
-                .filter(([, v]) => v)
-                .map(([k]) => k)
-                .join(', ')}
+Type /help for commands, or just start chatting! 💬
+Use /soul to view your config, /reset to start over.`);
+                return;
+            }
+            // New user — trigger onboarding (cancel any pending first)
+            runtime.soulManager.cancelOnboarding(from.id);
+            runtime.soulManager.startOnboarding(from.id);
+            const firstName = from.first_name ?? 'there';
+            await reply(ctx, `👋 <b>Hey ${(0, formatter_1.escapeHtml)(firstName)}! I'm your new AI assistant.</b>
 
-Type /help to see all commands, or just start chatting! 🚀`);
+Let's set me up real quick — just 3 questions!
+
+<b>First: What should I call you?</b>
+<i>(Just type your name or nickname)</i>`);
         },
     },
     // ── /clear ────────────────────────────────────────────────────────────────
@@ -522,6 +535,259 @@ Examples:
                 return `• <b>${(0, formatter_1.escapeHtml)(name)}</b> (${s.userId}) — ${s.profile.message_count} msgs — ${age}`;
             });
             await reply(ctx, `<b>👥 Sessions (${sessions.length})</b>\n\n${lines.join('\n')}`);
+        },
+    },
+    // ── /soul ─────────────────────────────────────────────────────────────────
+    {
+        command: 'soul',
+        description: 'Show current personality / soul config',
+        async handler(ctx, runtime) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            const soul = runtime.soulManager.getSoul(from.id);
+            if (!soul) {
+                await reply(ctx, `🪬 No soul configured yet.\n\nSend any message to start onboarding, or use /start.`);
+                return;
+            }
+            await reply(ctx, (0, soul_1.formatSoul)(soul));
+        },
+    },
+    // ── /name ─────────────────────────────────────────────────────────────────
+    {
+        command: 'name',
+        description: 'Rename the bot: /name <new name>',
+        async handler(ctx, runtime, args) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            if (args.length === 0) {
+                const soul = runtime.soulManager.getSoul(from.id);
+                await reply(ctx, `Bot name: <b>${(0, formatter_1.escapeHtml)(soul?.botName ?? 'coderaw')}</b>\n\nUsage: <code>/name NewName</code>`);
+                return;
+            }
+            const newName = args.join(' ').trim().slice(0, 50);
+            const updated = runtime.soulManager.updateSoul(from.id, { botName: newName });
+            if (!updated) {
+                // Create a default soul first
+                await reply(ctx, `⚠️ No soul configured yet. Send any message to start setup first.`);
+                return;
+            }
+            // Refresh session system prompt
+            const session = runtime.sessions.get(from.id, ctx.chat.id);
+            if (session) {
+                session.systemPrompt = updated.systemPrompt;
+                runtime.sessions.save(session);
+            }
+            await reply(ctx, `✅ Bot renamed to <b>${(0, formatter_1.escapeHtml)(newName)}</b>! I'll go by that from now on.`);
+        },
+    },
+    // ── /role ─────────────────────────────────────────────────────────────────
+    {
+        command: 'role',
+        description: 'Change bot role: /role [coding|research|general|devops|data|creative]',
+        async handler(ctx, runtime, args) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            const soul = runtime.soulManager.getSoul(from.id);
+            if (args.length === 0) {
+                const currentRole = soul?.role ?? 'general';
+                await reply(ctx, `<b>🎭 Choose a role</b>\n\nCurrent: <code>${(0, formatter_1.escapeHtml)(currentRole)}</code>`, { reply_markup: (0, keyboards_1.roleChangeKeyboard)(currentRole) });
+                return;
+            }
+            const roleInput = args.join(' ').trim();
+            const resolvedRole = (0, soul_1.resolveSoulRole)(roleInput);
+            if (!resolvedRole) {
+                await reply(ctx, `❌ Unknown role: <code>${(0, formatter_1.escapeHtml)(roleInput)}</code>\n\nAvailable: coding, research, general, devops, data, creative`);
+                return;
+            }
+            if (!soul) {
+                await reply(ctx, `⚠️ No soul configured yet. Send any message to start setup first.`);
+                return;
+            }
+            const roleDef = soul_1.ROLE_DEFS[resolvedRole];
+            const updated = runtime.soulManager.updateSoul(from.id, {
+                role: resolvedRole,
+                capabilities: roleDef.capabilities,
+            });
+            if (!updated)
+                return;
+            const session = runtime.sessions.get(from.id, ctx.chat.id);
+            if (session) {
+                session.systemPrompt = updated.systemPrompt;
+                runtime.sessions.save(session);
+            }
+            await reply(ctx, `✅ Role changed to ${roleDef.emoji} <b>${roleDef.label}</b>\n\n<i>${roleDef.shortDesc}</i>`);
+        },
+    },
+    // ── /language ─────────────────────────────────────────────────────────────
+    {
+        command: 'language',
+        description: 'Change language: /language [english|egyptian|franco|arabic|french|...]',
+        async handler(ctx, runtime, args) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            const soul = runtime.soulManager.getSoul(from.id);
+            const currentLang = soul?.language ?? 'english';
+            if (args.length === 0) {
+                const langDef = soul_1.LANGUAGE_DEFS[currentLang];
+                await reply(ctx, `<b>🌍 Choose a language</b>\n\nCurrent: ${langDef.flag} <b>${langDef.label}</b>`, { reply_markup: (0, keyboards_1.languageChangeKeyboard)(currentLang) });
+                return;
+            }
+            const sub = args[0].toLowerCase();
+            if (sub === 'list') {
+                const lines = Object.entries(soul_1.LANGUAGE_DEFS).map(([id, def]) => `  ${def.flag} <code>${id.padEnd(12)}</code> ${def.label}${soul?.language === id ? ' ← current' : ''}`);
+                await reply(ctx, `<b>🌍 Available Languages</b>\n\n${lines.join('\n')}\n\n<i>Use: /language &lt;name&gt;</i>`);
+                return;
+            }
+            const langInput = (sub === 'set' ? args[1] : args[0]) ?? '';
+            const resolvedLang = (0, soul_1.resolveSoulLanguage)(langInput);
+            if (!resolvedLang) {
+                await reply(ctx, `❌ Unknown language: <code>${(0, formatter_1.escapeHtml)(langInput)}</code>\n\nTry: english, egyptian, franco, arabic, french, spanish, german, turkish, auto`);
+                return;
+            }
+            if (!soul) {
+                // Also update the session persona if no soul
+                const session = runtime.sessions.get(from.id, ctx.chat.id);
+                if (session) {
+                    session.profile.prefs.persona = resolvedLang;
+                    runtime.sessions.save(session);
+                }
+                const langDef = soul_1.LANGUAGE_DEFS[resolvedLang];
+                await reply(ctx, `✅ Language set to ${langDef.flag} <b>${langDef.label}</b>`);
+                return;
+            }
+            const updated = runtime.soulManager.updateSoul(from.id, { language: resolvedLang });
+            if (!updated)
+                return;
+            const session = runtime.sessions.get(from.id, ctx.chat.id);
+            if (session) {
+                session.systemPrompt = updated.systemPrompt;
+                runtime.sessions.save(session);
+            }
+            const langDef = soul_1.LANGUAGE_DEFS[resolvedLang];
+            await reply(ctx, `✅ Language changed to ${langDef.flag} <b>${langDef.label}</b>`);
+        },
+    },
+    // ── /reset ────────────────────────────────────────────────────────────────
+    {
+        command: 'reset',
+        description: 'Reset soul/personality to default (will re-run onboarding)',
+        async handler(ctx, runtime) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            runtime.soulManager.deleteSoul(from.id);
+            runtime.soulManager.cancelOnboarding(from.id);
+            // Clear session system prompt too
+            const session = runtime.sessions.get(from.id, ctx.chat.id);
+            if (session) {
+                session.systemPrompt = undefined;
+                runtime.sessions.clearConversation(session);
+                runtime.sessions.save(session);
+            }
+            await reply(ctx, `🔄 Soul reset! Send any message and I'll run setup again.`);
+        },
+    },
+    // ── /search ───────────────────────────────────────────────────────────────
+    {
+        command: 'search',
+        description: 'Search the web: /search <query>',
+        async handler(ctx, runtime, args) {
+            if (args.length === 0) {
+                await reply(ctx, `<b>🔍 Web Search</b>\n\nUsage: <code>/search your query here</code>\n\nExample: <code>/search nodejs express tutorial</code>`);
+                return;
+            }
+            const query = args.join(' ');
+            await ctx.replyWithChatAction('typing').catch(() => { });
+            const result = await (0, web_tools_1.executeWebSearch)(query);
+            const text = result.content.slice(0, 4000);
+            await reply(ctx, (0, formatter_1.escapeHtml)(text).replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'));
+        },
+    },
+    // ── /fetch ────────────────────────────────────────────────────────────────
+    {
+        command: 'fetch',
+        description: 'Fetch URL content: /fetch <url>',
+        async handler(ctx, runtime, args) {
+            if (args.length === 0) {
+                await reply(ctx, `<b>🌐 Web Fetch</b>\n\nUsage: <code>/fetch https://example.com</code>`);
+                return;
+            }
+            const url = args[0];
+            await ctx.replyWithChatAction('typing').catch(() => { });
+            const result = await (0, web_tools_1.executeWebFetch)(url, 4000);
+            if (result.isError) {
+                await reply(ctx, `❌ ${(0, formatter_1.escapeHtml)(result.content)}`);
+            }
+            else {
+                await reply(ctx, `<code>${(0, formatter_1.escapeHtml)(result.content.slice(0, 3800))}</code>`);
+            }
+        },
+    },
+    // ── /api ──────────────────────────────────────────────────────────────────
+    {
+        command: 'api',
+        description: 'Make an API call: /api <method> <url>',
+        async handler(ctx, runtime, args) {
+            if (args.length < 2) {
+                await reply(ctx, `<b>🔌 API Call</b>
+
+Usage: <code>/api &lt;method&gt; &lt;url&gt;</code>
+
+Examples:
+  <code>/api GET https://api.github.com/users/shadysmetools</code>
+  <code>/api GET https://httpbin.org/get</code>
+
+For headers/body, ask the AI to make API calls for you.`);
+                return;
+            }
+            const method = args[0].toUpperCase();
+            const url = args[1];
+            const validMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+            if (!validMethods.includes(method)) {
+                await reply(ctx, `❌ Invalid method. Use: ${validMethods.join(', ')}`);
+                return;
+            }
+            await ctx.replyWithChatAction('typing').catch(() => { });
+            const result = await (0, web_tools_1.executeApiCall)({ url, method: method });
+            const text = result.content.slice(0, 3800);
+            if (result.isError) {
+                await reply(ctx, `❌ ${(0, formatter_1.escapeHtml)(text)}`);
+            }
+            else {
+                await reply(ctx, `<code>${(0, formatter_1.escapeHtml)(text)}</code>`);
+            }
+        },
+    },
+    // ── /compact ──────────────────────────────────────────────────────────────
+    {
+        command: 'compact',
+        description: 'Summarize old conversation history to save tokens',
+        async handler(ctx, runtime) {
+            const from = ctx.from;
+            if (!from)
+                return;
+            const session = runtime.sessions.get(from.id, ctx.chat.id);
+            if (!session) {
+                await reply(ctx, 'No session data yet. Send a message first!');
+                return;
+            }
+            const before = session.messages.filter(m => m.role !== 'system').length;
+            if (before <= 4) {
+                await reply(ctx, `Conversation is already short (${before} messages). Nothing to compact.`);
+                return;
+            }
+            // Keep last 4 non-system messages, summarize the rest
+            const systemMsgs = session.messages.filter(m => m.role === 'system');
+            const nonSystem = session.messages.filter(m => m.role !== 'system');
+            const kept = nonSystem.slice(-4);
+            const removed = nonSystem.length - kept.length;
+            session.messages = [...systemMsgs, ...kept];
+            runtime.sessions.save(session);
+            await reply(ctx, `✅ Compacted: removed ${removed} old messages, kept last 2 turns. Saves tokens on next request!`);
         },
     },
 ];

@@ -19,6 +19,7 @@ import { BotSessionManager } from './session';
 import { SecurityManager } from './security';
 import { BotToolBridge } from './tools';
 import { BotScheduler } from './scheduler';
+import { SoulManager } from './soul';
 import { MemoryManager } from '../memory/index';
 import { SkillsManager } from '../skills/index';
 export type BotContext = Context;
@@ -30,6 +31,7 @@ export interface BotRuntime {
     scheduler: BotScheduler;
     memory: MemoryManager;
     skills: SkillsManager;
+    soulManager: SoulManager;
 }
 export declare function createTelegramBot(config: BotConfig): Promise<{
     bot: Bot;

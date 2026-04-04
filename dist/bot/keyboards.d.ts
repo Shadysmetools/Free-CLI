@@ -34,4 +34,12 @@ export declare function paginationKeyboard(page: number, total: number, prefix: 
 export declare function adminKeyboard(): InlineKeyboard;
 /** Cancel keyboard — single button */
 export declare function cancelKeyboard(data?: string): InlineKeyboard;
+/** Role selection keyboard for onboarding */
+export declare function roleKeyboard(): InlineKeyboard;
+/** Language selection keyboard for onboarding */
+export declare function languageKeyboard(): InlineKeyboard;
+/** Language change keyboard (same as onboarding, different prefix context) */
+export declare function languageChangeKeyboard(current?: string): InlineKeyboard;
+/** Role change keyboard */
+export declare function roleChangeKeyboard(current?: string): InlineKeyboard;
 //# sourceMappingURL=keyboards.d.ts.map
