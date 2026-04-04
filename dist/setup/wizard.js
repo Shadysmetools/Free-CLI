@@ -99,6 +99,9 @@ async function detectProviders() {
     const openaiKey = process.env.OPENAI_API_KEY;
     results.push({ id: 'openai', label: 'OpenAI GPT (BYOK)', available: !!openaiKey, free: false,
         model: 'gpt-4o-mini', reason: openaiKey ? 'OPENAI_API_KEY found' : 'no OPENAI_API_KEY' });
+    const mistralKey = process.env.MISTRAL_API_KEY;
+    results.push({ id: 'mistral', label: 'Mistral AI (free tier)', available: !!mistralKey, free: true,
+        model: 'devstral-small-latest', reason: mistralKey ? 'MISTRAL_API_KEY found' : 'no MISTRAL_API_KEY' });
     return results;
 }
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -250,6 +253,7 @@ ${chalk_1.default.cyan('└─────────────────�
         google: { var: 'GOOGLE_API_KEY', url: 'https://aistudio.google.com', model: 'gemini-2.5-flash', hint: 'AIza...' },
         anthropic: { var: 'ANTHROPIC_API_KEY', url: 'https://console.anthropic.com', model: 'claude-3-5-haiku-20241022', hint: 'sk-ant-...' },
         openai: { var: 'OPENAI_API_KEY', url: 'https://platform.openai.com', model: 'gpt-4o-mini', hint: 'sk-...' },
+        mistral: { var: 'MISTRAL_API_KEY', url: 'https://console.mistral.ai/api-keys', model: 'devstral-small-latest', hint: 'sk-...' },
     };
     const info = keyLabels[selectedProvider];
     if (!info) {

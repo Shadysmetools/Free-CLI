@@ -8,6 +8,7 @@ const anthropic_1 = require("./anthropic");
 const openai_1 = require("./openai");
 const google_1 = require("./google");
 const openrouter_1 = require("./openrouter");
+const mistral_1 = require("./mistral");
 function createProvider(providerName, settings) {
     const cfg = settings.providers[providerName] || {};
     switch (providerName) {
@@ -23,12 +24,14 @@ function createProvider(providerName, settings) {
             return new google_1.GoogleProvider(cfg.model || 'gemini-2.5-flash', cfg.apiKey);
         case 'openrouter':
             return new openrouter_1.OpenRouterProvider(cfg.model || 'openrouter/free', cfg.apiKey, cfg.baseUrl);
+        case 'mistral':
+            return new mistral_1.MistralProvider(cfg.model || 'devstral-small-latest', cfg.apiKey);
         default:
             throw new Error(`Unknown provider: ${providerName}`);
     }
 }
-exports.PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter'];
-exports.FREE_PROVIDERS = ['ollama', 'groq', 'google', 'openrouter'];
+exports.PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter', 'mistral'];
+exports.FREE_PROVIDERS = ['ollama', 'groq', 'google', 'openrouter', 'mistral'];
 exports.PROVIDER_INFO = {
     ollama: { description: 'Local models — completely free, no API key', requiresKey: false, free: true },
     groq: { description: 'Ultra-fast inference — free tier available', requiresKey: true, free: true },
@@ -36,6 +39,7 @@ exports.PROVIDER_INFO = {
     openrouter: { description: 'Many models including free ones', requiresKey: true, free: true },
     anthropic: { description: 'Claude models (BYOK)', requiresKey: true, free: false },
     openai: { description: 'GPT models (BYOK)', requiresKey: true, free: false },
+    mistral: { description: 'Mistral/Devstral/Codestral — free tier', requiresKey: true, free: true },
 };
 /**
  * Curated model lists per provider (for /models command and tab-completion).
@@ -73,6 +77,14 @@ exports.PROVIDER_MODELS = {
         { id: 'deepseek-coder-v2', label: 'DeepSeek Coder V2', free: true },
         { id: 'gemma3:12b', label: 'Gemma 3 12B', free: true },
         { id: 'phi4', label: 'Phi-4 14B', free: true },
+    ],
+    mistral: [
+        { id: 'devstral-small-latest', label: 'Devstral Small (coding, free)', free: true, recommended: true },
+        { id: 'mistral-small-latest', label: 'Mistral Small (fast)', free: true },
+        { id: 'codestral-latest', label: 'Codestral (code-optimized)', free: false },
+        { id: 'mistral-large-latest', label: 'Mistral Large (best)', free: false },
+        { id: 'open-mistral-nemo', label: 'Mistral Nemo 12B (free)', free: true },
+        { id: 'pixtral-large-latest', label: 'Pixtral Large (vision)', free: false },
     ],
     anthropic: [
         { id: 'claude-opus-4-5', label: 'Claude Opus 4.5 (best)', free: false, recommended: true },

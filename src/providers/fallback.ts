@@ -10,6 +10,7 @@ import { OllamaProvider } from './ollama';
 import { GroqProvider } from './groq';
 import { GoogleProvider } from './google';
 import { OpenRouterProvider } from './openrouter';
+import { MistralProvider } from './mistral';
 
 // ─── Fallback Chain ───────────────────────────────────────────────────────────
 
@@ -64,6 +65,19 @@ export const FREE_FALLBACK_CHAIN: FallbackEntry[] = [
     model: 'llama-3.1-8b-instant',
     label: 'Groq (Llama 8B instant)',
     createProvider: () => new GroqProvider('llama-3.1-8b-instant'),
+  },
+  // Mistral — free tier with devstral/nemo
+  {
+    provider: 'mistral',
+    model: 'devstral-small-latest',
+    label: 'Mistral (Devstral Small)',
+    createProvider: () => new MistralProvider('devstral-small-latest'),
+  },
+  {
+    provider: 'mistral',
+    model: 'open-mistral-nemo',
+    label: 'Mistral (Nemo 12B)',
+    createProvider: () => new MistralProvider('open-mistral-nemo'),
   },
   // Google Gemini — free tier with generous limits
   {
@@ -163,6 +177,7 @@ export async function completeWithFallback(
     const errMsg = (primaryError instanceof Error ? primaryError.message : String(primaryError));
     const tips = [];
     if (!process.env.GROQ_API_KEY) tips.push('GROQ_API_KEY (free at console.groq.com)');
+    if (!process.env.MISTRAL_API_KEY) tips.push('MISTRAL_API_KEY (free at console.mistral.ai)');
     if (!process.env.GOOGLE_API_KEY && !process.env.GEMINI_API_KEY) tips.push('GOOGLE_API_KEY (free at aistudio.google.com)');
     const tipText = tips.length > 0
       ? `\nTip: Add more free providers with /key:\n  ${tips.join('\n  ')}`
@@ -205,6 +220,13 @@ export async function checkAllProviders(): Promise<ProviderStatus[]> {
       model: 'gemini-2.5-flash',
       provider: new GoogleProvider('gemini-2.5-flash'),
       envVar: 'GOOGLE_API_KEY or GEMINI_API_KEY',
+    },
+    {
+      id: 'mistral',
+      label: 'Mistral',
+      model: 'devstral-small-latest',
+      provider: new MistralProvider('devstral-small-latest'),
+      envVar: 'MISTRAL_API_KEY',
     },
     {
       id: 'ollama',

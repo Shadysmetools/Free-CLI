@@ -15,6 +15,7 @@ const ollama_1 = require("./ollama");
 const groq_1 = require("./groq");
 const google_1 = require("./google");
 const openrouter_1 = require("./openrouter");
+const mistral_1 = require("./mistral");
 exports.FREE_FALLBACK_CHAIN = [
     // OpenRouter free models (different models may have independent rate limits)
     {
@@ -59,6 +60,19 @@ exports.FREE_FALLBACK_CHAIN = [
         model: 'llama-3.1-8b-instant',
         label: 'Groq (Llama 8B instant)',
         createProvider: () => new groq_1.GroqProvider('llama-3.1-8b-instant'),
+    },
+    // Mistral — free tier with devstral/nemo
+    {
+        provider: 'mistral',
+        model: 'devstral-small-latest',
+        label: 'Mistral (Devstral Small)',
+        createProvider: () => new mistral_1.MistralProvider('devstral-small-latest'),
+    },
+    {
+        provider: 'mistral',
+        model: 'open-mistral-nemo',
+        label: 'Mistral (Nemo 12B)',
+        createProvider: () => new mistral_1.MistralProvider('open-mistral-nemo'),
     },
     // Google Gemini — free tier with generous limits
     {
@@ -144,6 +158,8 @@ async function completeWithFallback(provider, options, notify) {
         const tips = [];
         if (!process.env.GROQ_API_KEY)
             tips.push('GROQ_API_KEY (free at console.groq.com)');
+        if (!process.env.MISTRAL_API_KEY)
+            tips.push('MISTRAL_API_KEY (free at console.mistral.ai)');
         if (!process.env.GOOGLE_API_KEY && !process.env.GEMINI_API_KEY)
             tips.push('GOOGLE_API_KEY (free at aistudio.google.com)');
         const tipText = tips.length > 0
@@ -175,6 +191,13 @@ async function checkAllProviders() {
             model: 'gemini-2.5-flash',
             provider: new google_1.GoogleProvider('gemini-2.5-flash'),
             envVar: 'GOOGLE_API_KEY or GEMINI_API_KEY',
+        },
+        {
+            id: 'mistral',
+            label: 'Mistral',
+            model: 'devstral-small-latest',
+            provider: new mistral_1.MistralProvider('devstral-small-latest'),
+            envVar: 'MISTRAL_API_KEY',
         },
         {
             id: 'ollama',

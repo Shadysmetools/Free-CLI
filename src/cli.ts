@@ -531,16 +531,18 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
           gemini: 'GOOGLE_API_KEY',
           anthropic: 'ANTHROPIC_API_KEY',
           openai: 'OPENAI_API_KEY',
+          mistral: 'MISTRAL_API_KEY',
         };
         const envVar = envMap[providerName];
         if (envVar) {
           process.env[envVar] = args[1];
-          ctx.settings.providers[providerName] = ctx.settings.providers[providerName] || {} as any;
-          (ctx.settings.providers[providerName] as any).apiKey = args[1];
+          const pName = providerName === 'gemini' ? 'google' : providerName;
+          ctx.settings.providers[pName] = ctx.settings.providers[pName] || {} as any;
+          (ctx.settings.providers[pName] as any).apiKey = args[1];
           saveSettings(ctx.settings);
-          printSuccess(`API key updated for ${providerName}!`);
+          printSuccess(`API key updated for ${pName}!`);
         } else {
-          printError(`Unknown provider: ${providerName}. Try: openrouter, groq, google, anthropic, openai`);
+          printError(`Unknown provider: ${providerName}. Try: openrouter, groq, google, anthropic, openai, mistral`);
         }
       } else {
         // /key — show which keys are set
@@ -551,6 +553,7 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
           { name: 'Google/Gemini', env: 'GOOGLE_API_KEY' },
           { name: 'Anthropic', env: 'ANTHROPIC_API_KEY' },
           { name: 'OpenAI', env: 'OPENAI_API_KEY' },
+          { name: 'Mistral', env: 'MISTRAL_API_KEY' },
         ];
         for (const k of keys) {
           const val = process.env[k.env];

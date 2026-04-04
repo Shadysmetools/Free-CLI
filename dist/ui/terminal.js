@@ -104,7 +104,7 @@ function printBanner() {
     console.log(`
 ${c.cyan('┌─────────────────────────────────────────┐')}
 ${c.cyan('│')}  ${c.bold.cyan('⚡ coderaw')}  ${c.dim('free AI coding agent')}   ${c.cyan('│')}
-${c.cyan('│')}  ${c.dim('ollama · groq · gemini · claude · gpt')}  ${c.cyan('│')}
+${c.cyan('│')}  ${c.dim('ollama · groq · gemini · mistral · claude · gpt')}  ${c.cyan('│')}
 ${c.cyan('└─────────────────────────────────────────┘')}
 `);
 }

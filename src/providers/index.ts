@@ -5,6 +5,7 @@ import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';
 import { GoogleProvider } from './google';
 import { OpenRouterProvider } from './openrouter';
+import { MistralProvider } from './mistral';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -98,15 +99,20 @@ export function createProvider(providerName: string, settings: Settings): Provid
         cfg.apiKey,
         cfg.baseUrl
       );
+    case 'mistral':
+      return new MistralProvider(
+        cfg.model || 'devstral-small-latest',
+        cfg.apiKey
+      );
     default:
       throw new Error(`Unknown provider: ${providerName}`);
   }
 }
 
-export const PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter'] as const;
+export const PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter', 'mistral'] as const;
 export type ProviderName = typeof PROVIDER_LIST[number];
 
-export const FREE_PROVIDERS = ['ollama', 'groq', 'google', 'openrouter'] as const;
+export const FREE_PROVIDERS = ['ollama', 'groq', 'google', 'openrouter', 'mistral'] as const;
 
 export const PROVIDER_INFO: Record<string, { description: string; requiresKey: boolean; free: boolean }> = {
   ollama: { description: 'Local models — completely free, no API key', requiresKey: false, free: true },
@@ -115,6 +121,7 @@ export const PROVIDER_INFO: Record<string, { description: string; requiresKey: b
   openrouter: { description: 'Many models including free ones', requiresKey: true, free: true },
   anthropic: { description: 'Claude models (BYOK)', requiresKey: true, free: false },
   openai: { description: 'GPT models (BYOK)', requiresKey: true, free: false },
+  mistral: { description: 'Mistral/Devstral/Codestral — free tier', requiresKey: true, free: true },
 };
 
 /**
@@ -153,6 +160,14 @@ export const PROVIDER_MODELS: Record<string, Array<{ id: string; label: string; 
     { id: 'deepseek-coder-v2',   label: 'DeepSeek Coder V2',    free: true },
     { id: 'gemma3:12b',          label: 'Gemma 3 12B',          free: true },
     { id: 'phi4',                label: 'Phi-4 14B',             free: true },
+  ],
+  mistral: [
+    { id: 'devstral-small-latest',     label: 'Devstral Small (coding, free)',    free: true, recommended: true },
+    { id: 'mistral-small-latest',      label: 'Mistral Small (fast)',             free: true },
+    { id: 'codestral-latest',          label: 'Codestral (code-optimized)',       free: false },
+    { id: 'mistral-large-latest',      label: 'Mistral Large (best)',             free: false },
+    { id: 'open-mistral-nemo',         label: 'Mistral Nemo 12B (free)',          free: true },
+    { id: 'pixtral-large-latest',      label: 'Pixtral Large (vision)',           free: false },
   ],
   anthropic: [
     { id: 'claude-opus-4-5',           label: 'Claude Opus 4.5 (best)',       free: false, recommended: true },
