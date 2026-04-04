@@ -5,6 +5,7 @@ dotenv.config();
 import { startCLI } from './cli';
 import { runSetupWizard, isSetupComplete, silentAutoDetect } from './setup/wizard';
 import { printHelp, setVerboseMode } from './ui/terminal';
+import { runBotCommand } from './bot/index';
 
 const args = process.argv.slice(2);
 
@@ -48,9 +49,25 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-// If positional args given, treat as one-shot query
-if (positional.length > 0 && positional[0] !== 'setup') {
-  opts.oneShot = positional.join(' ');
+// kcc bot [subcommand] — Telegram bot mode (must run before main())
+if (positional[0] === 'bot') {
+  const subcommand = positional[1] ?? 'start';
+  const extraArgs = positional.slice(2);
+  runBotCommand(subcommand, extraArgs).catch(err => {
+    console.error('Bot error:', (err as Error).message);
+    process.exit(1);
+  });
+  // Stop here — don't fall through to normal CLI
+} else {
+  // If positional args given, treat as one-shot query
+  if (positional.length > 0 && positional[0] !== 'setup') {
+    opts.oneShot = positional.join(' ');
+  }
+
+  main().catch(err => {
+    console.error('Fatal error:', (err as Error).message);
+    process.exit(1);
+  });
 }
 
 async function main(): Promise<void> {
@@ -79,8 +96,3 @@ async function main(): Promise<void> {
 
   await startCLI(opts);
 }
-
-main().catch(err => {
-  console.error('Fatal error:', (err as Error).message);
-  process.exit(1);
-});

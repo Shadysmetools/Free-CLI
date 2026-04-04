@@ -39,6 +39,7 @@ dotenv.config();
 const cli_1 = require("./cli");
 const wizard_1 = require("./setup/wizard");
 const terminal_1 = require("./ui/terminal");
+const index_1 = require("./bot/index");
 const args = process.argv.slice(2);
 // Parse flags
 const opts = {};
@@ -79,9 +80,25 @@ for (let i = 0; i < args.length; i++) {
         positional.push(arg);
     }
 }
-// If positional args given, treat as one-shot query
-if (positional.length > 0 && positional[0] !== 'setup') {
-    opts.oneShot = positional.join(' ');
+// kcc bot [subcommand] — Telegram bot mode (must run before main())
+if (positional[0] === 'bot') {
+    const subcommand = positional[1] ?? 'start';
+    const extraArgs = positional.slice(2);
+    (0, index_1.runBotCommand)(subcommand, extraArgs).catch(err => {
+        console.error('Bot error:', err.message);
+        process.exit(1);
+    });
+    // Stop here — don't fall through to normal CLI
+}
+else {
+    // If positional args given, treat as one-shot query
+    if (positional.length > 0 && positional[0] !== 'setup') {
+        opts.oneShot = positional.join(' ');
+    }
+    main().catch(err => {
+        console.error('Fatal error:', err.message);
+        process.exit(1);
+    });
 }
 async function main() {
     if (verboseArg)
@@ -108,8 +125,4 @@ async function main() {
     }
     await (0, cli_1.startCLI)(opts);
 }
-main().catch(err => {
-    console.error('Fatal error:', err.message);
-    process.exit(1);
-});
 //# sourceMappingURL=index.js.map

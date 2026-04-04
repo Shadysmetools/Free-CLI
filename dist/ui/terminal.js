@@ -116,6 +116,9 @@ ${c.bold.cyan('knowcap-code')} — Free AI Coding Assistant  ${c.dim('(Claude Co
 ${c.bold('USAGE')}
   ${c.cyan('knowcap-code')} [options]         Start interactive session
   ${c.cyan('knowcap-code')} "your question"   Single-turn query
+  ${c.cyan('kcc bot start')}            Start Telegram bot (see ~/.knowcap-code/bot.yaml)
+  ${c.cyan('kcc bot init')}             Create bot config file
+  ${c.cyan('kcc bot status')}           Validate bot config
 
 ${c.bold('OPTIONS')}
   ${c.yellow('--provider')} <name>    Set AI provider

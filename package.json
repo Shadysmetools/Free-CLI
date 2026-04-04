@@ -50,6 +50,7 @@
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "glob": "^10.3.10",
+    "grammy": "^1.42.0",
     "inquirer": "^8.2.6",
     "marked": "^12.0.0",
     "marked-terminal": "^7.0.0",

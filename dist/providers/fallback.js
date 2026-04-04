@@ -65,6 +65,9 @@ function isRetriableError(error) {
     return (msg.includes('429') ||
         msg.includes('413') ||
         msg.includes('404') ||
+        msg.includes('502') ||
+        msg.includes('503') ||
+        msg.includes('504') ||
         msg.includes('quota') ||
         msg.includes('rate limit') ||
         msg.includes('rate_limit') ||
@@ -74,7 +77,10 @@ function isRetriableError(error) {
         msg.includes('tokens per') ||
         msg.includes('exceeded') ||
         msg.includes('overloaded') ||
-        msg.includes('capacity'));
+        msg.includes('capacity') ||
+        msg.includes('service unavailable') ||
+        msg.includes('gateway timeout') ||
+        msg.includes('bad gateway'));
 }
 /**
  * Try provider.complete(); on retriable failure, walk FREE_FALLBACK_CHAIN
