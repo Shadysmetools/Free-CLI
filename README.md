@@ -1,8 +1,10 @@
 # ⚡ knowcap-code
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="version"/>
+  <img src="https://img.shields.io/badge/version-1.0.0--beta-orange?style=for-the-badge" alt="version"/>
+  <img src="https://img.shields.io/badge/status-beta%20%F0%9F%9A%A7-yellow?style=for-the-badge" alt="beta"/>
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license"/>
+  <img src="https://img.shields.io/badge/contributions-welcome-brightgreen?style=for-the-badge" alt="contributions welcome"/>
   <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=for-the-badge&logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/TypeScript-5.3-blue?style=for-the-badge&logo=typescript" alt="typescript"/>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="platforms"/>
@@ -727,3 +729,46 @@ MIT © [Shadysmetools](https://github.com/Shadysmetools)
 ---
 
 <p align="center">Made by <a href="https://github.com/Shadysmetools">Shadysmetools</a></p>
+
+---
+
+## 🚧 Beta — Help Us Improve!
+
+knowcap-code is in **active beta**. We ship fast and fix faster.
+
+### Found a bug? Have an idea?
+
+- 🐛 **Report bugs:** [Open an issue](https://github.com/Shadysmetools/knowcap-code/issues/new?labels=bug&template=bug_report.md)
+- 💡 **Request features:** [Open an issue](https://github.com/Shadysmetools/knowcap-code/issues/new?labels=enhancement&template=feature_request.md)
+- 🔧 **Fix something:** Fork → Branch → PR (we review fast!)
+
+### Areas We Need Help
+
+| Area | What's Needed |
+|------|--------------|
+| 🐛 Bug fixes | SSL errors on some systems, rate limit handling |
+| 🎨 UI/UX | Better terminal rendering, themes |
+| 🤖 Providers | More LLM integrations, better streaming |
+| 📄 Docs | Tutorials, examples, translations |
+| 🧪 Testing | Unit tests, E2E tests |
+| 🌍 i18n | More language personas |
+| 📦 Packaging | Homebrew, apt, snap packages |
+
+### Contributing
+
+1. Fork the repo
+2. Create your branch: `git checkout -b fix/my-fix`
+3. Make changes + test: `npm run build && kcc`
+4. Commit: `git commit -m "fix: description"`
+5. Push + open PR
+
+We respond to all PRs and issues within 24 hours! 🚀
+
+---
+
+## 🙏 Star This Repo
+
+If knowcap-code helped you, give us a ⭐ on GitHub — it helps others find us!
+
+[![Star on GitHub](https://img.shields.io/github/stars/Shadysmetools/knowcap-code?style=social)](https://github.com/Shadysmetools/knowcap-code)
+
