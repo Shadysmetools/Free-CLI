@@ -254,7 +254,11 @@ ${chalk.cyan('└─────────────────────
     return;
   }
 
-  console.log(chalk.dim(`\n  Get your API key at: ${chalk.cyan(info.url)}\n`));
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 1: Primary provider API key
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log(chalk.bold.cyan(`\n📌 Step 1/3: ${info.var}`));
+  console.log(chalk.dim(`  Get your API key at: ${chalk.cyan(info.url)}\n`));
 
   const { apiKey } = await inquirer.prompt([{
     type: 'password',
@@ -271,11 +275,111 @@ ${chalk.cyan('└─────────────────────
     apiKey: apiKey.trim(),
     model: info.model,
   };
+
+  console.log(chalk.green(`\n✅ Primary: ${selectedProvider}/${info.model}\n`));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 2: Groq key for transcription (if not already set)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const existingGroq = process.env.GROQ_API_KEY || settings.providers.groq?.apiKey;
+  if (!existingGroq && selectedProvider !== 'groq') {
+    console.log(chalk.bold.cyan('🎙️  Step 2/3: Transcription (optional)'));
+    console.log(chalk.dim('  Groq offers FREE speech-to-text (whisper-large-v3).'));
+    console.log(chalk.dim(`  Get a free key at: ${chalk.cyan('https://console.groq.com')}\n`));
+
+    const { groqKey } = await inquirer.prompt([{
+      type: 'password',
+      name: 'groqKey',
+      message: 'Enter GROQ_API_KEY (Enter to skip):',
+      mask: '•',
+    }]);
+
+    if (groqKey && groqKey.trim().length > 10) {
+      settings.providers.groq = { ...settings.providers.groq, apiKey: groqKey.trim(), model: 'llama-3.3-70b-versatile' };
+      process.env.GROQ_API_KEY = groqKey.trim();
+      console.log(chalk.green('  ✅ Groq set! /transcribe + fallback AI ready.\n'));
+    } else {
+      console.log(chalk.dim('  ⏭  Skipped. You can add later with: /key groq <key>\n'));
+    }
+  } else if (selectedProvider === 'groq') {
+    // Groq is already the primary — also set for transcription
+    settings.providers.groq = { ...settings.providers.groq, apiKey: apiKey.trim(), model: 'llama-3.3-70b-versatile' };
+    console.log(chalk.bold.cyan('🎙️  Step 2/3: Transcription'));
+    console.log(chalk.green('  ✅ Groq is your primary — transcription auto-enabled!\n'));
+  } else {
+    console.log(chalk.bold.cyan('🎙️  Step 2/3: Transcription'));
+    console.log(chalk.green('  ✅ Groq key already set — transcription ready!\n'));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 3: Fallback provider (if no other providers set)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const hasMultipleProviders = [
+    settings.providers.openrouter?.apiKey,
+    settings.providers.groq?.apiKey,
+    settings.providers.google?.apiKey,
+    settings.providers.mistral?.apiKey,
+    process.env.GOOGLE_API_KEY,
+    process.env.GEMINI_API_KEY,
+  ].filter(Boolean).length >= 2;
+
+  if (!hasMultipleProviders) {
+    // Suggest a different free provider as fallback
+    const fallbackOptions: Array<{ name: string; id: string; envVar: string; url: string; hint: string }> = [
+      { name: 'OpenRouter', id: 'openrouter', envVar: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/keys', hint: 'sk-or-v1-...' },
+      { name: 'Groq', id: 'groq', envVar: 'GROQ_API_KEY', url: 'https://console.groq.com', hint: 'gsk_...' },
+      { name: 'Google Gemini', id: 'google', envVar: 'GOOGLE_API_KEY', url: 'https://aistudio.google.com', hint: 'AIza...' },
+      { name: 'Mistral', id: 'mistral', envVar: 'MISTRAL_API_KEY', url: 'https://console.mistral.ai', hint: 'sk-...' },
+    ].filter(o => o.id !== selectedProvider && !settings.providers[o.id]?.apiKey);
+
+    if (fallbackOptions.length > 0) {
+      const suggestedFallback = fallbackOptions[0];
+      console.log(chalk.bold.cyan('🔄 Step 3/3: Fallback provider (optional)'));
+      console.log(chalk.dim('  If your primary hits rate limits, coderaw auto-switches to a fallback.'));
+      console.log(chalk.dim(`  Recommended: ${chalk.cyan(suggestedFallback.name)} — free at ${suggestedFallback.url}\n`));
+
+      const { fallbackKey } = await inquirer.prompt([{
+        type: 'password',
+        name: 'fallbackKey',
+        message: `Enter ${suggestedFallback.envVar} (Enter to skip):`,
+        mask: '•',
+      }]);
+
+      if (fallbackKey && fallbackKey.trim().length > 10) {
+        const fbModel = keyLabels[suggestedFallback.id]?.model || suggestedFallback.id;
+        settings.providers[suggestedFallback.id] = {
+          ...settings.providers[suggestedFallback.id],
+          apiKey: fallbackKey.trim(),
+          model: fbModel,
+        };
+        process.env[suggestedFallback.envVar] = fallbackKey.trim();
+        console.log(chalk.green(`  ✅ Fallback: ${suggestedFallback.name} ready!\n`));
+      } else {
+        console.log(chalk.dim('  ⏭  Skipped. Add anytime with: /key <provider> <key>\n'));
+      }
+    } else {
+      console.log(chalk.bold.cyan('🔄 Step 3/3: Fallback'));
+      console.log(chalk.green('  ✅ Multiple providers already set — auto-fallback ready!\n'));
+    }
+  } else {
+    console.log(chalk.bold.cyan('🔄 Step 3/3: Fallback'));
+    console.log(chalk.green('  ✅ Multiple providers set — auto-fallback ready!\n'));
+  }
+
   saveSettings(settings);
   markSetupComplete();
 
-  console.log(chalk.green(`\n✅ Saved! Using ${selectedProvider}/${info.model}\n`));
-  console.log(chalk.dim(`  Tip: Also set ${info.var} in your shell profile for permanent use.\n`));
+  // Summary
+  console.log(chalk.bold('━'.repeat(50)));
+  console.log(chalk.bold.green('  🚀 Setup complete!\n'));
+  const configuredProviders = Object.entries(settings.providers)
+    .filter(([, cfg]) => cfg.apiKey)
+    .map(([name]) => name);
+  console.log(chalk.dim(`  Primary:  ${chalk.white(selectedProvider)}`));
+  console.log(chalk.dim(`  Fallback: ${chalk.white(configuredProviders.filter(p => p !== selectedProvider).join(', ') || 'none (add with /key)')}`));
+  console.log(chalk.dim(`  Transcription: ${chalk.white(settings.providers.groq?.apiKey ? 'Groq Whisper ✅' : 'not set (add with /key groq)')}`));
+  console.log(chalk.bold('━'.repeat(50)));
+  console.log();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
