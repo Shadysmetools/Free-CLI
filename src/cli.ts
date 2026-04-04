@@ -15,6 +15,7 @@ import { setupMCPClient } from './mcp/config';
 import { transcribeFile, transcribeViaGroq, getWhisperInstallInstructions } from './whisper/transcribe';
 import { printBanner, printHelp, printError, printSuccess, printInfo, printWarning, printSectionHeader, printBox, createSpinner, printPlanBox, PlanStep } from './ui/terminal';
 import { renderMarkdown } from './ui/markdown';
+import { readInputWithBox, printAIResponseStart, printAIResponseEnd, printThinking, isTTYMode } from './ui/chat-input';
 import { MemoryManager } from './memory/index';
 import { SkillsManager } from './skills/index';
 import { TokenTracker } from './tracking/tokens';
@@ -153,96 +154,118 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
 
   // ── One-shot mode ─────────────────────────────────────────────────────────
   if (opts.oneShot) {
-    process.stdout.write(chalk.green('\nAI  › '));
+    printAIResponseStart(false); // no thinking line in one-shot / piped mode
     let streamedContent = '';
     const result = await runAgent(provider, conversation, opts.oneShot, {
       cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
       onToken: (tok: string) => { streamedContent += tok; },
     });
     if (result.content && !streamedContent && result.content.trim()) {
-      process.stdout.write(renderMarkdown(result.content.trim()) + '\n');
+      process.stdout.write(renderMarkdown(result.content.trim()));
     }
-    if (result.footerLine) {
-      console.log(result.footerLine);
-    }
+    printAIResponseEnd(result.footerLine);
     return;
   }
 
-  // ── Interactive REPL ──────────────────────────────────────────────────────
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: true,
-    prompt: chalk.cyan('› '),
-  });
+  // ── Interactive REPL — chat-box UI ───────────────────────────────────────
+  //
+  //  TTY  → bordered 💬 input box + 🤖 AI response bubble (Gemini style)
+  //  Pipe → simple readline (no box) — still uses response bubble format
 
-  rl.prompt();
-
-  rl.on('line', async (line) => {
-    const input = line.trim();
-    if (!input) { rl.prompt(); return; }
-
-    if (input.startsWith('/')) {
-      await handleSlashCommand(input, {
-        settings, conversation, provider, providerName, cwd, mcpClient, rl,
-        memory, skills, tokenTracker, registry, openclawClient,
-        history, profile, persona,
-        onProviderChange: (newProvider, newName) => {
-          provider = newProvider;
-          providerName = newName;
-        },
-        onConversationReset: (newConv) => {
-          conversation = newConv;
-        },
-        onSystemUpdate: () => {
-          // Rebuild system prompt when persona/profile changes
-          const msgs = conversation.messages;
-          const sysIdx = msgs.findIndex(m => m.role === 'system');
-          if (sysIdx >= 0) msgs[sysIdx].content = buildSystem();
-        },
-      });
-      rl.prompt();
-      return;
-    }
-
-    // Regular message → run agent
-    history.addMessage({ role: 'user', content: input });
-    try {
-      // Print "AI  › " inline — tokens or rendered content follow on the same line
-      process.stdout.write(chalk.green('\nAI  › '));
-      let streamedContent = '';
-      const result = await runAgent(provider, conversation, input, {
-        cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
-        onToken: (token: string) => { streamedContent += token; },
-      });
-      if (result.content) {
-        if (!streamedContent && result.content.trim()) {
-          // Non-streaming (fallback) — print content right after AI ›
-          const rendered = renderMarkdown(result.content.trim());
-          process.stdout.write(rendered + '\n');
-        }
-        // Footer (dim, after response)
-        if (result.footerLine) {
-          console.log(result.footerLine);
-        }
-        history.addMessage({ role: 'assistant', content: result.content });
-      }
-    } catch (err) {
-      printError((err as Error).message);
-    }
-
-    rl.prompt();
-  });
-
-  rl.on('close', () => {
-    // Give any in-flight async operation time to finish before exiting
-    // (needed when stdin is piped: readline closes before runAgent returns)
-    setTimeout(() => {
+  // Fake readline interface for slash commands that call rl.close() / rl.prompt()
+  const fakeRl = {
+    close: () => {
       history.save();
       console.log(chalk.dim('\nGoodbye! 👋'));
       process.exit(0);
-    }, 45_000); // wait up to 45s for pending AI response
+    },
+    prompt: () => { /* no-op — the while loop redraws the box */ },
+  } as unknown as readline.Interface;
+
+  const makeSlashCtx = () => ({
+    settings, conversation, provider, providerName, cwd, mcpClient,
+    rl: fakeRl,
+    memory, skills, tokenTracker, registry, openclawClient,
+    history, profile, persona,
+    onProviderChange: (newProvider: ReturnType<typeof createProvider>, newName: string) => {
+      provider = newProvider;
+      providerName = newName;
+    },
+    onConversationReset: (newConv: ReturnType<typeof createConversation>) => {
+      conversation = newConv;
+    },
+    onSystemUpdate: () => {
+      const msgs = conversation.messages;
+      const sysIdx = msgs.findIndex(m => m.role === 'system');
+      if (sysIdx >= 0) msgs[sysIdx].content = buildSystem();
+    },
   });
+
+  // Main chat loop
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const inputResult = await readInputWithBox();
+
+    if (inputResult.eof) {
+      // Give any in-flight async operation time to finish (piped mode)
+      await new Promise<void>(res => setTimeout(res, 45_000));
+      history.save();
+      console.log(chalk.dim('\nGoodbye! 👋'));
+      process.exit(0);
+    }
+
+    const input = inputResult.text;
+    if (!input) continue;
+
+    // Slash commands
+    if (input.startsWith('/')) {
+      await handleSlashCommand(input, makeSlashCtx());
+      continue;
+    }
+
+    // Regular message → run agent
+    //
+    // ┌─ Input blocking guarantee ─────────────────────────────────────────┐
+    // │ The while(true) loop AWAITS this entire block before calling        │
+    // │ readInputWithBox() again.  No new input is accepted until we reach  │
+    // │ the next loop iteration.  Any keys typed during AI processing are   │
+    // │ buffered by the kernel and silently drained by the 80 ms grace      │
+    // │ window at the start of the next readLineBoxed() call.               │
+    // └────────────────────────────────────────────────────────────────────-┘
+    history.addMessage({ role: 'user', content: input });
+    const tty = isTTYMode();
+
+    try {
+      // 1. Flash "⏳ Thinking..." on the blank line after the box
+      //    (immediate visual acknowledgment that Enter was received)
+      printThinking(tty);
+
+      // 2. Clear thinking line → show 🤖 AI header + separator + indent
+      //    The gap between this header and the first streaming token IS the
+      //    visual "thinking" experience (0.5–3 s of API latency).
+      printAIResponseStart(tty);
+
+      let streamedContent = '';
+      const agentResult = await runAgent(provider, conversation, input, {
+        cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
+        onToken: (token: string) => { streamedContent += token; },
+      });
+
+      if (agentResult.content) {
+        if (!streamedContent && agentResult.content.trim()) {
+          // Non-streaming provider fallback: write content after the "  " indent
+          const rendered = renderMarkdown(agentResult.content.trim());
+          process.stdout.write(rendered);
+        }
+        printAIResponseEnd(agentResult.footerLine);
+        history.addMessage({ role: 'assistant', content: agentResult.content });
+      }
+    } catch (err) {
+      // Close the response block cleanly even on error
+      printAIResponseEnd();
+      printError((err as Error).message);
+    }
+  }
 }
 
 // ─── Slash Command Context ────────────────────────────────────────────────────
