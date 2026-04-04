@@ -52,6 +52,7 @@ const tools_1 = require("./agent/tools");
 const config_1 = require("./mcp/config");
 const transcribe_1 = require("./whisper/transcribe");
 const terminal_1 = require("./ui/terminal");
+const markdown_1 = require("./ui/markdown");
 const index_2 = require("./memory/index");
 const index_3 = require("./skills/index");
 const tokens_1 = require("./tracking/tokens");
@@ -212,10 +213,17 @@ async function startCLI(opts = {}) {
         try {
             console.log();
             console.log(chalk_1.default.green('AI  › '));
+            let streamedContent = '';
             const result = await (0, core_1.runAgent)(provider, conversation, input, {
                 cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
+                onToken: (token) => { streamedContent += token; },
             });
             if (result.content) {
+                // If content wasn't streamed (non-streaming provider or fallback), print it
+                if (!streamedContent && result.content.trim()) {
+                    const rendered = (0, markdown_1.renderMarkdown)(result.content.trim());
+                    console.log(rendered);
+                }
                 history.addMessage({ role: 'assistant', content: result.content });
             }
         }

@@ -205,10 +205,17 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
     try {
       console.log();
       console.log(chalk.green('AI  › '));
+      let streamedContent = '';
       const result = await runAgent(provider, conversation, input, {
         cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
+        onToken: (token: string) => { streamedContent += token; },
       });
       if (result.content) {
+        // If content wasn't streamed (non-streaming provider or fallback), print it
+        if (!streamedContent && result.content.trim()) {
+          const rendered = renderMarkdown(result.content.trim());
+          console.log(rendered);
+        }
         history.addMessage({ role: 'assistant', content: result.content });
       }
     } catch (err) {
