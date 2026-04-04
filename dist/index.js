@@ -69,7 +69,7 @@ for (let i = 0; i < args.length; i++) {
     else if (arg === '--version' || arg === '-v') {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const pkg = require('../package.json');
-        console.log(`knowcap-code v${pkg.version}`);
+        console.log(`coderaw v${pkg.version}`);
         process.exit(0);
     }
     else if (arg === '--help' || arg === '-h') {

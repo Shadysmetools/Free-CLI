@@ -2,7 +2,7 @@
 /**
  * User Identity & Profile
  *
- * Stored at ~/.knowcap-code/profile.yaml
+ * Stored at ~/.coderaw/profile.yaml
  * Injected into the system prompt so the AI knows who it's talking to.
  *
  * Example profile.yaml:
@@ -59,8 +59,8 @@ const os = __importStar(require("os"));
 const yaml = __importStar(require("yaml"));
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const CONFIG_DIR = process.platform === 'win32'
-    ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
-    : path.join(os.homedir(), '.knowcap-code');
+    ? path.join(process.env.APPDATA ?? os.homedir(), 'coderaw')
+    : path.join(os.homedir(), '.coderaw');
 const PROFILE_FILE = path.join(CONFIG_DIR, 'profile.yaml');
 // ─── ProfileManager ───────────────────────────────────────────────────────────
 class ProfileManager {

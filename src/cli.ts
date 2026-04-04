@@ -492,7 +492,7 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
     // ── OpenClaw ──────────────────────────────────────────────────────────────
     case 'openclaw': {
       if (!ctx.openclawClient) {
-        printError('OpenClaw gateway not configured. Add to ~/.knowcap-code/config.yaml:');
+        printError('OpenClaw gateway not configured. Add to ~/.coderaw/config.yaml:');
         console.log(chalk.dim(`
   openclaw:
     url: "http://localhost:18789"
@@ -521,7 +521,7 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
         console.log(`  ${chalk.cyan('Provider:')}   ${ctx.providerName}`);
         console.log(`  ${chalk.cyan('Model:')}      ${ctx.provider.model}`);
         console.log(`  ${chalk.cyan('Working dir:')} ${ctx.cwd}`);
-        console.log(`  ${chalk.cyan('Config:')}     ~/.knowcap-code/config.yaml`);
+        console.log(`  ${chalk.cyan('Config:')}     ~/.coderaw/config.yaml`);
         console.log(`\n  ${chalk.bold('Providers:')}`);
         for (const [name, cfg] of Object.entries(ctx.settings.providers)) {
           const info = PROVIDER_INFO[name];
@@ -776,7 +776,7 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
 
     case 'mcp': {
       if (!ctx.mcpClient) {
-        printInfo('No MCP servers configured. Add to ~/.knowcap-code/config.yaml under mcp.servers');
+        printInfo('No MCP servers configured. Add to ~/.coderaw/config.yaml under mcp.servers');
         break;
       }
       printSectionHeader('🔌 MCP Servers');

@@ -1,7 +1,7 @@
 /**
  * config.ts — Bot YAML config loader
  *
- * Config file: ~/.knowcap-code/bot.yaml
+ * Config file: ~/.coderaw/bot.yaml
  * Creates default config on first run.
  */
 export interface BotTelegramConfig {

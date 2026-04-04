@@ -5,7 +5,7 @@
  * Personas are injected into the system prompt each turn.
  *
  * Built-ins cover Arabic dialects, Franco-Arab (Arabizi), and major world languages.
- * Custom personas are stored in ~/.knowcap-code/personas/<name>.yaml
+ * Custom personas are stored in ~/.coderaw/personas/<name>.yaml
  */
 export interface Persona {
     id: string;

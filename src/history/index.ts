@@ -1,7 +1,7 @@
 /**
  * Persistent Conversation History
  *
- * Saves every session to ~/.knowcap-code/history/<timestamp>-<title>.json
+ * Saves every session to ~/.coderaw/history/<timestamp>-<title>.json
  * Supports:
  *  - Auto-save on every message
  *  - List past sessions
@@ -43,8 +43,8 @@ export interface SessionSummary {
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
 const HISTORY_DIR = process.platform === 'win32'
-  ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code', 'history')
-  : path.join(os.homedir(), '.knowcap-code', 'history');
+  ? path.join(process.env.APPDATA ?? os.homedir(), 'coderaw', 'history')
+  : path.join(os.homedir(), '.coderaw', 'history');
 
 function ensureHistoryDir(): void {
   if (!fs.existsSync(HISTORY_DIR)) {

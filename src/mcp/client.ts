@@ -148,7 +148,7 @@ class MCPServerProcess {
         this.sendRequest('initialize', {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          clientInfo: { name: 'knowcap-code', version: '1.0.0' },
+          clientInfo: { name: 'coderaw', version: '1.0.0' },
         }).then(() => resolve()).catch(reject);
       });
 

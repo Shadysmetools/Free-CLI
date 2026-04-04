@@ -1,7 +1,7 @@
 /**
  * config.ts — Bot YAML config loader
  *
- * Config file: ~/.knowcap-code/bot.yaml
+ * Config file: ~/.coderaw/bot.yaml
  * Creates default config on first run.
  */
 
@@ -113,7 +113,7 @@ const DEFAULT_CONFIG: BotConfig = {
   },
   scheduler: {
     enabled: true,
-    store: path.join(os.homedir(), '.knowcap-code', 'bot-jobs.json'),
+    store: path.join(os.homedir(), '.coderaw', 'bot-jobs.json'),
     timezone: 'UTC',
   },
   ui: {
@@ -130,7 +130,7 @@ const DEFAULT_CONFIG: BotConfig = {
 export function getBotConfigPath(): string {
   const envPath = process.env.KCC_BOT_CONFIG;
   if (envPath) return envPath;
-  return path.join(os.homedir(), '.knowcap-code', 'bot.yaml');
+  return path.join(os.homedir(), '.coderaw', 'bot.yaml');
 }
 
 // ─── Load ─────────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export function saveBotConfig(config: BotConfig): void {
 
 function createDefaultConfig(configPath: string): void {
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const content = `# knowcap-code Telegram Bot Configuration
+  const content = `# coderaw Telegram Bot Configuration
 # Run: kcc bot start
 
 telegram:
@@ -211,7 +211,7 @@ security:
 # Scheduler / Cron jobs
 scheduler:
   enabled: true
-  store: ~/.knowcap-code/bot-jobs.json
+  store: ~/.coderaw/bot-jobs.json
   timezone: UTC
 
 # UI behavior

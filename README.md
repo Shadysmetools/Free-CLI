@@ -1,4 +1,4 @@
-# ⚡ knowcap-code
+# ⚡ coderaw
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.0.0--beta-orange?style=for-the-badge" alt="version"/>
@@ -11,9 +11,25 @@
 </p>
 
 <p align="center">
-  <b>Free AI coding assistant that works like Claude Code — but with <i>any</i> model.</b><br/>
+  <b>Free AI coding CLI — works with any model.</b><br/>
   Ollama (local) · Groq (free tier) · Gemini · Claude · GPT · OpenRouter
 </p>
+
+---
+
+## 🆓 100% Free to Use
+
+coderaw works with completely free AI providers — no credit card needed!
+
+| Provider | Models | Cost | Setup |
+|----------|--------|------|-------|
+| **OpenRouter** | 28+ free models (Qwen, Llama, etc.) | Free | Get key at openrouter.ai |
+| **Groq** | Llama 3.3 70B, Whisper (transcription) | Free | Get key at groq.com |
+| **Ollama** | Any local model | Free | Install ollama.com |
+| **Google** | Gemini 2.5 Flash | Free tier | Get key at ai.google.dev |
+
+OpenRouter is recommended — it auto-picks the best available free model!  
+Groq is best for voice transcription (free Whisper API).
 
 ---
 
@@ -22,12 +38,12 @@
 | # | Feature | Command |
 |---|---------|---------|
 | 1 | 🤖 **Multi-provider AI** | `--provider ollama`, `--provider groq`, etc. |
-| 2 | 💬 **Interactive REPL** | `kcc` |
+| 2 | 💬 **Interactive REPL** | `coderaw` or `cr` or `kcc` |
 | 3 | 🔍 **Code reviewer** | `/review [file]` |
 | 4 | 🤖 **Sub-agent orchestration** | `/plan <task>`, `/agents list` |
 | 5 | 🖼️ **Multimodal input** | `--image`, `--video`, `--voice` |
 | 6 | 🎤 **Live voice commands** | `/voice` |
-| 7 | 🌐 **REST API server** | `kcc serve --port 3333` |
+| 7 | 🌐 **REST API server** | `coderaw serve --port 3333` |
 | 8 | 🔌 **Plugin / extension system** | `/skills add <name>` |
 | 9 | 🤖 **Custom bot creation** | `/agents create` |
 | 10 | 📚 **Agentic RAG** | `/rag index`, `/rag search` |
@@ -53,8 +69,9 @@
 ### Install globally from npm
 
 ```bash
-npm install -g knowcap-code
-kcc                          # start interactive session
+npm install -g coderaw
+coderaw                      # start interactive session
+# Also works as: cr  or  kcc
 ```
 
 ### Install from source
@@ -64,8 +81,8 @@ git clone https://github.com/Shadysmetools/knowcap-code.git
 cd knowcap-code
 npm install
 npm run build
-npm link                     # makes `kcc` available globally
-kcc --help
+npm link                     # makes `coderaw`, `cr`, and `kcc` available globally
+coderaw --help
 ```
 
 ---
@@ -80,7 +97,7 @@ kcc --help
 ### From npm
 
 ```bash
-npm install -g knowcap-code
+npm install -g coderaw
 ```
 
 ### From source
@@ -90,83 +107,86 @@ git clone https://github.com/Shadysmetools/knowcap-code.git
 cd knowcap-code
 npm install
 npm run build          # compiles TypeScript → dist/
-npm link               # optional: installs kcc globally
+npm link               # optional: installs coderaw/cr/kcc globally
 ```
 
 ### First run
 
 ```bash
-kcc                    # auto-detects provider (Ollama if running, else prompts)
-kcc setup              # interactive setup wizard
+coderaw                # auto-detects provider (Ollama if running, else prompts)
+coderaw setup          # interactive setup wizard
 ```
 
 ---
 
 ## 🤖 Provider Setup
 
-### Ollama (Free, Local)
-
-```bash
-# Install Ollama: https://ollama.ai
-ollama pull llama3.1        # or any model
-kcc --provider ollama --model llama3.1
-```
-
-### Groq (Free Tier)
-
-```bash
-export GROQ_API_KEY="gsk_..."
-kcc --provider groq --model llama-3.3-70b-versatile
-```
-
-### Google Gemini
-
-```bash
-export GOOGLE_API_KEY="AIza..."
-kcc --provider google --model gemini-2.0-flash
-```
-
-### Anthropic Claude
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-kcc --provider anthropic --model claude-3-5-sonnet-20241022
-```
-
-### OpenAI / GPT
-
-```bash
-export OPENAI_API_KEY="sk-..."
-kcc --provider openai --model gpt-4o
-```
-
-### OpenRouter (100+ models)
+### OpenRouter (Recommended — 28+ free models)
 
 ```bash
 export OPENROUTER_API_KEY="sk-or-..."
-kcc --provider openrouter --model anthropic/claude-3.5-sonnet
+coderaw --provider openrouter --model openrouter/auto
+# openrouter/auto automatically picks the best available free model!
 ```
 
-## Free OpenRouter Models
-
+**Best free models on OpenRouter:**
 - `meta-llama/llama-3.3-70b-instruct:free` — Best overall
 - `deepseek/deepseek-r1:free` — Best reasoning
 - `mistral/devstral-2:free` — Best for coding
 - `google/gemma-3-27b-it:free` — Google's free
 - `openrouter/auto` — Auto-pick best free model
 
+### Groq (Free — Best for voice transcription)
+
+```bash
+export GROQ_API_KEY="gsk_..."
+coderaw --provider groq --model llama-3.3-70b-versatile
+# Groq also provides free Whisper API for voice transcription!
+```
+
+### Ollama (Free, Local)
+
+```bash
+# Install Ollama: https://ollama.ai
+ollama pull llama3.1        # or any model
+coderaw --provider ollama --model llama3.1
+```
+
+### Google Gemini
+
+```bash
+export GOOGLE_API_KEY="AIza..."
+coderaw --provider google --model gemini-2.0-flash
+```
+
+### Anthropic Claude
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+coderaw --provider anthropic --model claude-3-5-sonnet-20241022
+```
+
+### OpenAI / GPT
+
+```bash
+export OPENAI_API_KEY="sk-..."
+coderaw --provider openai --model gpt-4o
+```
+
 ### Persist your default provider
 
 ```bash
-kcc --provider groq --model llama-3.3-70b-versatile
-# Type /model groq:llama-3.3-70b-versatile to save as default
+# Type /model openrouter:openrouter/auto to save as default
 ```
 
-Or edit `~/.knowcap-code/settings.yaml`:
+Or edit `~/.coderaw/settings.yaml`:
 
 ```yaml
-defaultProvider: groq
+defaultProvider: openrouter
 providers:
+  openrouter:
+    apiKey: sk-or-...
+    model: openrouter/auto
   groq:
     apiKey: gsk_...
     model: llama-3.3-70b-versatile
@@ -179,31 +199,33 @@ providers:
 ### Interactive session
 
 ```bash
-kcc                              # Start REPL
-kcc --provider ollama            # Use Ollama
-kcc --model gemini-2.0-flash     # Specific model
-kcc --cwd /path/to/project       # Set working directory
+coderaw                          # Start REPL
+cr                               # Short alias
+kcc                              # Legacy alias (backwards compat)
+coderaw --provider ollama        # Use Ollama
+coderaw --model gemini-2.0-flash # Specific model
+coderaw --cwd /path/to/project   # Set working directory
 ```
 
 ### One-shot query
 
 ```bash
-kcc "explain this function" < src/utils.ts
-kcc "write a Dockerfile for a Node.js app"
+coderaw "explain this function" < src/utils.ts
+coderaw "write a Dockerfile for a Node.js app"
 ```
 
 ### With files (multimodal)
 
 ```bash
-kcc --image screenshot.png "what's wrong with this UI?"
-kcc --video demo.mp4 "summarize this demo"
-kcc --voice meeting.mp3 "transcribe and summarize"
+coderaw --image screenshot.png "what's wrong with this UI?"
+coderaw --video demo.mp4 "summarize this demo"
+coderaw --voice meeting.mp3 "transcribe and summarize"
 ```
 
 ### REST API server
 
 ```bash
-kcc serve --port 3333
+coderaw serve --port 3333
 
 # Then call:
 curl -X POST http://localhost:3333/chat \
@@ -316,7 +338,7 @@ curl -X POST http://localhost:3333/chat \
 
 ## 🌍 Persona / Language System
 
-knowcap-code can respond in different languages and dialects:
+coderaw can respond in different languages and dialects:
 
 ```
 /persona list
@@ -341,7 +363,7 @@ knowcap-code can respond in different languages and dialects:
 /persona reset               # back to English
 ```
 
-**Custom persona** — create `~/.knowcap-code/personas/mybot.yaml`:
+**Custom persona** — create `~/.coderaw/personas/mybot.yaml`:
 
 ```yaml
 id: mybot
@@ -354,7 +376,7 @@ systemPrompt: "Respond like a senior DevOps engineer. Be terse and precise."
 
 ## 👤 User Profile
 
-Your profile is stored at `~/.knowcap-code/profile.yaml` and injected into the system prompt so the AI knows who it's talking to.
+Your profile is stored at `~/.coderaw/profile.yaml` and injected into the system prompt so the AI knows who it's talking to.
 
 ```yaml
 name: "Alex"
@@ -446,10 +468,10 @@ Break complex tasks into parallel sub-agents:
 
 ## 🌐 REST API Server
 
-Run knowcap-code as a background service:
+Run coderaw as a background service:
 
 ```bash
-kcc serve --port 3333
+coderaw serve --port 3333
 
 # POST /chat
 curl -X POST http://localhost:3333/chat \
@@ -485,7 +507,7 @@ Skills are markdown + YAML files that give the AI specialized instructions.
 # Now the AI knows all docker commands and best practices
 ```
 
-**Create a custom skill** at `~/.knowcap-code/skills/my-skill/SKILL.md`:
+**Create a custom skill** at `~/.coderaw/skills/my-skill/SKILL.md`:
 
 ```markdown
 # My Skill
@@ -506,7 +528,7 @@ Then: `/skills add my-skill`
 Connect to any MCP server for extended capabilities:
 
 ```yaml
-# ~/.knowcap-code/mcp.yaml
+# ~/.coderaw/mcp.yaml
 servers:
   filesystem:
     command: npx
@@ -544,9 +566,9 @@ openclaw:
 Transcribe voice files using local Whisper or Groq's Whisper API:
 
 ```bash
-kcc --voice meeting.mp3             # transcribe + summarize
-kcc --voice recording.m4a           # any audio format
-/voice                              # live mic (requires whisper CLI)
+coderaw --voice meeting.mp3             # transcribe + summarize
+coderaw --voice recording.m4a           # any audio format
+/voice                                  # live mic (requires whisper CLI)
 ```
 
 **Setup Whisper:**
@@ -577,7 +599,7 @@ Token usage is tracked per-session and displayed in the status bar.
 
 ## 📜 Persistent History
 
-Sessions are auto-saved to `~/.knowcap-code/history/`:
+Sessions are auto-saved to `~/.coderaw/history/`:
 
 ```bash
 /history                   # list recent sessions
@@ -589,13 +611,16 @@ Sessions are auto-saved to `~/.knowcap-code/history/`:
 
 ## ⚙️ Configuration
 
-### Global settings (`~/.knowcap-code/settings.yaml`)
+### Global settings (`~/.coderaw/settings.yaml`)
 
 ```yaml
-defaultProvider: groq
+defaultProvider: openrouter
 budget: 500000
 
 providers:
+  openrouter:
+    apiKey: sk-or-...
+    model: openrouter/auto
   ollama:
     baseUrl: http://localhost:11434
     model: llama3.1
@@ -650,7 +675,7 @@ The AI reads this file at startup and follows your project conventions.
 ## 🏗️ Architecture
 
 ```
-knowcap-code/
+coderaw/
 ├── src/
 │   ├── agent/
 │   │   ├── conversation.ts   # System prompt + message history
@@ -707,8 +732,10 @@ Create `src/skills/builtins/my-skill/SKILL.md` with your skill instructions.
 ## 📋 Changelog
 
 ### v1.0.0
-- Initial release
+- Initial release as **coderaw** (rebranded from knowcap-code)
 - 24 features across 14 modules
+- CLI commands: `coderaw`, `cr`, `kcc` (backwards compat)
+- Config dir: `~/.coderaw/`
 - Persona system: 9 languages/dialects
 - MCP protocol support
 - REST API server
@@ -734,7 +761,7 @@ MIT © [Shadysmetools](https://github.com/Shadysmetools)
 
 ## 🚧 Beta — Help Us Improve!
 
-knowcap-code is in **active beta**. We ship fast and fix faster.
+coderaw is in **active beta**. We ship fast and fix faster.
 
 ### Found a bug? Have an idea?
 
@@ -758,7 +785,7 @@ knowcap-code is in **active beta**. We ship fast and fix faster.
 
 1. Fork the repo
 2. Create your branch: `git checkout -b fix/my-fix`
-3. Make changes + test: `npm run build && kcc`
+3. Make changes + test: `npm run build && coderaw`
 4. Commit: `git commit -m "fix: description"`
 5. Push + open PR
 
@@ -768,7 +795,6 @@ We respond to all PRs and issues within 24 hours! 🚀
 
 ## 🙏 Star This Repo
 
-If knowcap-code helped you, give us a ⭐ on GitHub — it helps others find us!
+If coderaw helped you, give us a ⭐ on GitHub — it helps others find us!
 
 [![Star on GitHub](https://img.shields.io/github/stars/Shadysmetools/knowcap-code?style=social)](https://github.com/Shadysmetools/knowcap-code)
-

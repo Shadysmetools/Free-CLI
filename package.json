@@ -1,10 +1,11 @@
 {
-  "name": "knowcap-code",
+  "name": "coderaw",
   "version": "1.0.0",
-  "description": "Free AI coding assistant — works like Claude Code but with any model (Ollama, Groq, Gemini, OpenAI, Anthropic)",
+  "description": "Free AI coding CLI — works with any model (Ollama, Groq, Gemini, OpenAI, Anthropic, OpenRouter)",
   "main": "dist/index.js",
   "bin": {
-    "knowcap-code": "./dist/index.js",
+    "coderaw": "./dist/index.js",
+    "cr": "./dist/index.js",
     "kcc": "./dist/index.js"
   },
   "scripts": {
@@ -22,7 +23,9 @@
     "groq",
     "mcp",
     "cli",
-    "agent"
+    "agent",
+    "coderaw",
+    "free"
   ],
   "author": "Shadysmetools",
   "license": "MIT",

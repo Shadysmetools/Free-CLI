@@ -39,7 +39,7 @@ export class SkillsManager {
 
   constructor(cwd: string) {
     this.projectSkillsDir = path.join(cwd, 'skills');
-    this.userSkillsDir = path.join(os.homedir(), '.knowcap-code', 'skills');
+    this.userSkillsDir = path.join(os.homedir(), '.coderaw', 'skills');
     // __dirname at runtime = dist/skills, so go up one level to find builtins
     this.builtinSkillsDir = path.join(__dirname, 'builtins');
   }

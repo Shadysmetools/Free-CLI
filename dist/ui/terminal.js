@@ -103,7 +103,7 @@ exports.colors = {
 function printBanner() {
     console.log(`
 ${c.cyan('┌─────────────────────────────────────────┐')}
-${c.cyan('│')}  ${c.bold.cyan('⚡ knowcap-code')}  ${c.dim('free AI coding agent')}   ${c.cyan('│')}
+${c.cyan('│')}  ${c.bold.cyan('⚡ coderaw')}  ${c.dim('free AI coding agent')}   ${c.cyan('│')}
 ${c.cyan('│')}  ${c.dim('ollama · groq · gemini · claude · gpt')}  ${c.cyan('│')}
 ${c.cyan('└─────────────────────────────────────────┘')}
 `);
@@ -111,12 +111,12 @@ ${c.cyan('└──────────────────────�
 // ─── Help ─────────────────────────────────────────────────────────────────────
 function printHelp() {
     console.log(`
-${c.bold.cyan('knowcap-code')} — Free AI Coding Assistant  ${c.dim('(Claude Code-inspired)')}
+${c.bold.cyan('coderaw')} — Free AI Coding Assistant  ${c.dim('(Claude Code-inspired)')}
 
 ${c.bold('USAGE')}
-  ${c.cyan('knowcap-code')} [options]         Start interactive session
-  ${c.cyan('knowcap-code')} "your question"   Single-turn query
-  ${c.cyan('kcc bot start')}            Start Telegram bot (see ~/.knowcap-code/bot.yaml)
+  ${c.cyan('coderaw')} [options]         Start interactive session
+  ${c.cyan('coderaw')} "your question"   Single-turn query
+  ${c.cyan('kcc bot start')}            Start Telegram bot (see ~/.coderaw/bot.yaml)
   ${c.cyan('kcc bot init')}             Create bot config file
   ${c.cyan('kcc bot status')}           Validate bot config
 

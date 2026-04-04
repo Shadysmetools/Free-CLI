@@ -4,7 +4,7 @@
  * Architecture:
  *   MEMORY.md       — human-written project memory (version-controlled)
  *   memory/          — AI-written session logs (date-based, not committed)
- *   ~/.knowcap-code/MEMORY.md — user-level memory (personal, all projects)
+ *   ~/.coderaw/MEMORY.md — user-level memory (personal, all projects)
  *
  * Load limit: first 200 lines / 25KB (matching Claude Code's CLAUDE.md behavior)
  */

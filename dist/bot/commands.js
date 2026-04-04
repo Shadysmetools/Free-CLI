@@ -40,7 +40,7 @@ exports.COMMANDS = [
         command: 'help',
         description: 'Show help and available commands',
         async handler(ctx, runtime) {
-            const text = `<b>🤖 knowcap-code Bot</b>
+            const text = `<b>🤖 coderaw Bot</b>
 
 AI coding assistant in your Telegram. Powered by ${(0, formatter_1.escapeHtml)(runtime.config.provider)}/${(0, formatter_1.escapeHtml)(runtime.config.model)}.
 

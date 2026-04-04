@@ -6,7 +6,7 @@
  * Personas are injected into the system prompt each turn.
  *
  * Built-ins cover Arabic dialects, Franco-Arab (Arabizi), and major world languages.
- * Custom personas are stored in ~/.knowcap-code/personas/<name>.yaml
+ * Custom personas are stored in ~/.coderaw/personas/<name>.yaml
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -196,8 +196,8 @@ Teknik terimleri İngilizce olarak koruyun. Örnek: "Kimlik doğrulama için bir
 ];
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const CONFIG_DIR = process.platform === 'win32'
-    ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
-    : path.join(os.homedir(), '.knowcap-code');
+    ? path.join(process.env.APPDATA ?? os.homedir(), 'coderaw')
+    : path.join(os.homedir(), '.coderaw');
 const PERSONAS_DIR = path.join(CONFIG_DIR, 'personas');
 const ACTIVE_FILE = path.join(CONFIG_DIR, 'active-persona.txt');
 // ─── PersonaManager ───────────────────────────────────────────────────────────

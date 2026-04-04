@@ -1,7 +1,7 @@
 /**
  * Persistent Conversation History
  *
- * Saves every session to ~/.knowcap-code/history/<timestamp>-<title>.json
+ * Saves every session to ~/.coderaw/history/<timestamp>-<title>.json
  * Supports:
  *  - Auto-save on every message
  *  - List past sessions

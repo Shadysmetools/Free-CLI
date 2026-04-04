@@ -8,7 +8,7 @@
  * - Persistent storage (JSON)
  *
  * Architecture inspired by OpenClaw's cron system.
- * Jobs are stored in ~/.knowcap-code/bot-jobs.json
+ * Jobs are stored in ~/.coderaw/bot-jobs.json
  */
 import { EventEmitter } from 'events';
 import { BotSchedulerConfig } from './config';

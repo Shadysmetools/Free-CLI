@@ -52,7 +52,7 @@ export function initProjectMemory(cwd: string): string {
   const filePath = path.join(cwd, 'KNOWCAP.md');
   const content = `# KNOWCAP.md — Project Memory
 
-This file is read by knowcap-code at startup to understand your project.
+This file is read by coderaw at startup to understand your project.
 Customize it with project-specific context, conventions, and instructions.
 
 ## Project Overview

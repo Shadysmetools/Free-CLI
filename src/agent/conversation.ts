@@ -104,7 +104,7 @@ export function buildSystemPrompt(
   }
 
   const date = new Date().toISOString().split('T')[0];
-  let prompt = `You are knowcap-code, an expert AI coding assistant. You help with writing, editing, debugging, and understanding code.
+  let prompt = `You are coderaw, an expert AI coding assistant. You help with writing, editing, debugging, and understanding code.
 
 Current date: ${date}
 Working directory: ${opts.cwd}

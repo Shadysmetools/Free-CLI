@@ -90,8 +90,8 @@ export class OpenRouterProvider implements Provider {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(bodyStr),
-          'HTTP-Referer': 'https://github.com/Shadysmetools/knowcap-code',
-          'X-Title': 'knowcap-code',
+          'HTTP-Referer': 'https://github.com/Shadysmetools/coderaw',
+          'X-Title': 'coderaw',
         },
       }, (res) => {
         let data = '';
@@ -130,8 +130,8 @@ export class OpenRouterProvider implements Provider {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(bodyStr),
-          'HTTP-Referer': 'https://github.com/Shadysmetools/knowcap-code',
-          'X-Title': 'knowcap-code',
+          'HTTP-Referer': 'https://github.com/Shadysmetools/coderaw',
+          'X-Title': 'coderaw',
         },
       }, (res) => {
         let buffer = '';

@@ -53,8 +53,8 @@ const settings_1 = require("../config/settings");
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
 const inquirer = require('inquirer');
 const CONFIG_DIR = process.platform === 'win32'
-    ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
-    : path.join(os.homedir(), '.knowcap-code');
+    ? path.join(process.env.APPDATA ?? os.homedir(), 'coderaw')
+    : path.join(os.homedir(), '.coderaw');
 const SETUP_DONE_FILE = path.join(CONFIG_DIR, '.setup-complete');
 async function detectOllama(baseUrl = 'http://localhost:11434') {
     return new Promise(resolve => {
@@ -145,7 +145,7 @@ async function runSetupWizard(force = false) {
         return;
     console.log(`
 ${chalk_1.default.cyan('┌─────────────────────────────────────────────┐')}
-${chalk_1.default.cyan('│')}  ${chalk_1.default.bold.cyan('⚡ Welcome to knowcap-code!')}                 ${chalk_1.default.cyan('│')}
+${chalk_1.default.cyan('│')}  ${chalk_1.default.bold.cyan('⚡ Welcome to coderaw!')}                 ${chalk_1.default.cyan('│')}
 ${chalk_1.default.cyan('│')}  ${chalk_1.default.dim('Free AI Coding Assistant — Claude Code alt')}  ${chalk_1.default.cyan('│')}
 ${chalk_1.default.cyan('└─────────────────────────────────────────────┘')}
 `);

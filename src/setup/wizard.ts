@@ -14,8 +14,8 @@ import { loadSettings, saveSettings } from '../config/settings';
 const inquirer = require('inquirer') as any;
 
 const CONFIG_DIR = process.platform === 'win32'
-  ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
-  : path.join(os.homedir(), '.knowcap-code');
+  ? path.join(process.env.APPDATA ?? os.homedir(), 'coderaw')
+  : path.join(os.homedir(), '.coderaw');
 const SETUP_DONE_FILE = path.join(CONFIG_DIR, '.setup-complete');
 
 // ─── Auto-Detect ─────────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ export async function runSetupWizard(force = false): Promise<void> {
 
   console.log(`
 ${chalk.cyan('┌─────────────────────────────────────────────┐')}
-${chalk.cyan('│')}  ${chalk.bold.cyan('⚡ Welcome to knowcap-code!')}                 ${chalk.cyan('│')}
+${chalk.cyan('│')}  ${chalk.bold.cyan('⚡ Welcome to coderaw!')}                 ${chalk.cyan('│')}
 ${chalk.cyan('│')}  ${chalk.dim('Free AI Coding Assistant — Claude Code alt')}  ${chalk.cyan('│')}
 ${chalk.cyan('└─────────────────────────────────────────────┘')}
 `);

@@ -1,7 +1,7 @@
 /**
  * User Identity & Profile
  *
- * Stored at ~/.knowcap-code/profile.yaml
+ * Stored at ~/.coderaw/profile.yaml
  * Injected into the system prompt so the AI knows who it's talking to.
  *
  * Example profile.yaml:

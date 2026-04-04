@@ -40,10 +40,10 @@ export interface Settings {
   budget?: number;  // Session budget limit in USD
 }
 
-// Windows: use %APPDATA%\knowcap-code, Unix: ~/.knowcap-code
+// Windows: use %APPDATA%\coderaw, Unix: ~/.coderaw
 const CONFIG_DIR = process.platform === 'win32'
-  ? path.join(process.env.APPDATA ?? os.homedir(), 'knowcap-code')
-  : path.join(os.homedir(), '.knowcap-code');
+  ? path.join(process.env.APPDATA ?? os.homedir(), 'coderaw')
+  : path.join(os.homedir(), '.coderaw');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
 
 const DEFAULT_SETTINGS: Settings = {

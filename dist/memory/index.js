@@ -5,7 +5,7 @@
  * Architecture:
  *   MEMORY.md       — human-written project memory (version-controlled)
  *   memory/          — AI-written session logs (date-based, not committed)
- *   ~/.knowcap-code/MEMORY.md — user-level memory (personal, all projects)
+ *   ~/.coderaw/MEMORY.md — user-level memory (personal, all projects)
  *
  * Load limit: first 200 lines / 25KB (matching Claude Code's CLAUDE.md behavior)
  */
@@ -53,7 +53,7 @@ class MemoryManager {
     constructor(cwd) {
         this.projectMemoryFile = path.join(cwd, 'MEMORY.md');
         this.sessionDir = path.join(cwd, 'memory');
-        this.userMemoryFile = path.join(os.homedir(), '.knowcap-code', 'MEMORY.md');
+        this.userMemoryFile = path.join(os.homedir(), '.coderaw', 'MEMORY.md');
     }
     // ─── Read / Write ──────────────────────────────────────────────────────────
     /**
@@ -146,7 +146,7 @@ class MemoryManager {
         const results = [];
         const queryLower = query.toLowerCase();
         this.searchFile(this.projectMemoryFile, 'MEMORY.md', queryLower, results);
-        this.searchFile(this.userMemoryFile, '~/.knowcap-code/MEMORY.md', queryLower, results);
+        this.searchFile(this.userMemoryFile, '~/.coderaw/MEMORY.md', queryLower, results);
         if (fs.existsSync(this.sessionDir)) {
             const files = fs.readdirSync(this.sessionDir)
                 .filter(f => f.endsWith('.md'))
@@ -171,7 +171,7 @@ class MemoryManager {
         }
         const user = this.loadUserMemory();
         if (user.trim()) {
-            parts.push(`## Personal Memory (~/.knowcap-code/MEMORY.md)\n${user}`);
+            parts.push(`## Personal Memory (~/.coderaw/MEMORY.md)\n${user}`);
         }
         return parts.length > 0 ? '\n\n' + parts.join('\n\n') : '';
     }
@@ -217,7 +217,7 @@ class MemoryManager {
     defaultTemplate() {
         return `# MEMORY.md
 
-> Project memory loaded by knowcap-code at session start (first 200 lines / 25KB).
+> Project memory loaded by coderaw at session start (first 200 lines / 25KB).
 > Human-written instructions and context — commit this to version control.
 
 ## Decisions

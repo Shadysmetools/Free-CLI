@@ -2,7 +2,7 @@
  * session.ts — Per-user session management
  *
  * Persists conversation history, settings, and memory per Telegram user.
- * Sessions stored in: ~/.knowcap-code/sessions/<userId>.json
+ * Sessions stored in: ~/.coderaw/sessions/<userId>.json
  *
  * Architecture mirrors OpenClaw's session isolation per peer.
  */

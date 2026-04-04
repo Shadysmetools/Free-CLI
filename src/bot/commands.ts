@@ -57,7 +57,7 @@ export const COMMANDS: BotCommand[] = [
     command: 'help',
     description: 'Show help and available commands',
     async handler(ctx, runtime) {
-      const text = `<b>🤖 knowcap-code Bot</b>
+      const text = `<b>🤖 coderaw Bot</b>
 
 AI coding assistant in your Telegram. Powered by ${escapeHtml(runtime.config.provider)}/${escapeHtml(runtime.config.model)}.
 

@@ -308,7 +308,7 @@ export async function startApiServer(opts: ServerOptions): Promise<void> {
     });
   });
 
-  console.log(`\n✅ knowcap-code API server running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
+  console.log(`\n✅ coderaw API server running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
   console.log(`\nEndpoints:`);
   console.log(`  GET  http://localhost:${port}/api/status`);
   console.log(`  GET  http://localhost:${port}/api/models`);

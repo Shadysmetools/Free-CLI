@@ -21,7 +21,7 @@ import { createTelegramBot } from './telegram';
 function printBotBanner(token: string, provider: string, model: string): void {
   const tokenPreview = token.slice(0, 8) + '...' + token.slice(-4);
   console.log(chalk.bold.cyan('\n  ╔══════════════════════════════════╗'));
-  console.log(chalk.bold.cyan('  ║   knowcap-code  Telegram Bot     ║'));
+  console.log(chalk.bold.cyan('  ║   coderaw  Telegram Bot          ║'));
   console.log(chalk.bold.cyan('  ╚══════════════════════════════════╝'));
   console.log(chalk.dim(`  Token:    ${tokenPreview}`));
   console.log(chalk.dim(`  Provider: ${provider} / ${model}`));
@@ -43,7 +43,7 @@ async function ask(question: string, defaultVal?: string): Promise<string> {
 }
 
 async function runSetupWizard(): Promise<BotConfig> {
-  console.log(chalk.bold.cyan('\n  🤖 knowcap-code Bot Setup\n'));
+  console.log(chalk.bold.cyan('\n  🤖 coderaw Bot Setup\n'));
   console.log(chalk.dim('  Just paste your bot token and you\'re live!\n'));
   console.log(chalk.dim('  Don\'t have one? Open Telegram → @BotFather → /newbot\n'));
 
@@ -65,7 +65,7 @@ async function runSetupWizard(): Promise<BotConfig> {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   // Open access by default — first user to message becomes admin
-  const configContent = `# knowcap-code Telegram Bot Configuration
+  const configContent = `# coderaw Telegram Bot Configuration
 telegram:
   token: "${token}"
   # Empty = open to everyone. First /admin claim sets the admin.

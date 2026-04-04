@@ -7,7 +7,7 @@
  *
  * API reference: ~/.npm-global/lib/node_modules/openclaw/docs/gateway/tools-invoke-http-api.md
  *
- * Config (in ~/.knowcap-code/config.yaml):
+ * Config (in ~/.coderaw/config.yaml):
  *   openclaw:
  *     url: "http://localhost:18789"
  *     token: "your-gateway-token"

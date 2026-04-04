@@ -1,7 +1,7 @@
 /**
  * tools.ts — Tool execution bridge for the bot
  *
- * Adapts the existing knowcap-code tool registry for Telegram bot use.
+ * Adapts the existing coderaw tool registry for Telegram bot use.
  * Applies security checks (sandboxing, blocked commands) before execution.
  * Truncates large outputs to stay within Telegram limits.
  *

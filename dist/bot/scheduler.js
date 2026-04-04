@@ -9,7 +9,7 @@
  * - Persistent storage (JSON)
  *
  * Architecture inspired by OpenClaw's cron system.
- * Jobs are stored in ~/.knowcap-code/bot-jobs.json
+ * Jobs are stored in ~/.coderaw/bot-jobs.json
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;

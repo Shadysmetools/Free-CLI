@@ -41,7 +41,7 @@ export interface MediaInfo {
 
 // ─── File download ────────────────────────────────────────────────────────────
 
-const TEMP_DIR = path.join(os.homedir(), '.knowcap-code', 'temp');
+const TEMP_DIR = path.join(os.homedir(), '.coderaw', 'temp');
 
 /** Ensure temp directory exists */
 function ensureTempDir(): void {
