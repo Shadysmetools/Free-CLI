@@ -150,10 +150,25 @@ function printAIResponseEnd(footerLine) {
  * TTY  → bordered box, raw keypresses, 80 ms drain to discard buffered input.
  * Pipe → simple readline (no box).
  */
+// Track if we ever detected TTY (so inquirer can't break us)
+let wasTTY = null;
 async function readInputWithBox() {
-    if (!isTTYMode()) {
+    const isTTY = isTTYMode();
+    if (wasTTY === null)
+        wasTTY = isTTY;
+    // Use TTY mode if we EVER were TTY (inquirer may temporarily break isTTY)
+    if (!wasTTY && !isTTY) {
         return readLineRaw();
     }
+    // Ensure stdin is ready for raw mode after inquirer
+    try {
+        if (process.stdin.destroyed) {
+            // stdin was destroyed (e.g. by inquirer) — can't recover
+            return { text: '', eof: true };
+        }
+        process.stdin.resume();
+    }
+    catch { /* */ }
     return readLineBoxed();
 }
 // ─── Non-TTY fallback ─────────────────────────────────────────────────────────

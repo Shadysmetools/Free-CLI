@@ -846,12 +846,17 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
             printInfo('No local Whisper found. Groq offers free transcription (whisper-large-v3).');
             printInfo('Get a free API key at: https://console.groq.com');
             const inquirer = (await import('inquirer')).default;
+            // Ensure stdin is in line mode for inquirer
+            try { process.stdin.setRawMode?.(false); } catch { /* */ }
+            process.stdin.resume();
             const { key } = await inquirer.prompt([{
               type: 'password',
               name: 'key',
               message: 'Enter your GROQ_API_KEY (free):',
               mask: '•',
             }]);
+            // Restore stdin state for chat box
+            try { process.stdin.setRawMode?.(false); } catch { /* */ }
             if (key && key.trim()) {
               groqKey = key.trim();
               // Save for future use

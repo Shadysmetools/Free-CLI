@@ -49,11 +49,5 @@ export interface InputResult {
     text: string;
     eof: boolean;
 }
-/**
- * Read one message from the user.
- *
- * TTY  → bordered box, raw keypresses, 80 ms drain to discard buffered input.
- * Pipe → simple readline (no box).
- */
 export declare function readInputWithBox(): Promise<InputResult>;
 //# sourceMappingURL=chat-input.d.ts.map
