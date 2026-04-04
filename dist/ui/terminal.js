@@ -116,9 +116,9 @@ ${c.bold.cyan('coderaw')} — Free AI Coding Assistant  ${c.dim('(Claude Code-in
 ${c.bold('USAGE')}
   ${c.cyan('coderaw')} [options]         Start interactive session
   ${c.cyan('coderaw')} "your question"   Single-turn query
-  ${c.cyan('kcc bot start')}            Start Telegram bot (see ~/.coderaw/bot.yaml)
-  ${c.cyan('kcc bot init')}             Create bot config file
-  ${c.cyan('kcc bot status')}           Validate bot config
+  ${c.cyan('cr bot start')}            Start Telegram bot (see ~/.coderaw/bot.yaml)
+  ${c.cyan('cr bot init')}             Create bot config file
+  ${c.cyan('cr bot status')}           Validate bot config
 
 ${c.bold('OPTIONS')}
   ${c.yellow('--provider')} <name>    Set AI provider

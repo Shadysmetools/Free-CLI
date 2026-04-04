@@ -2,14 +2,14 @@
 /**
  * bot/index.ts — Bot CLI entry point
  *
- * Entry point for `kcc bot start` command.
+ * Entry point for `cr bot start` command.
  * Loads config, validates, creates the Telegram bot, and starts it.
  *
  * Usage:
- *   kcc bot start               — Start with default config
- *   kcc bot start --config <path>  — Use custom config file
- *   kcc bot init                — Create default config file
- *   kcc bot status              — Check if bot config is valid
+ *   cr bot start               — Start with default config
+ *   cr bot start --config <path>  — Use custom config file
+ *   cr bot init                — Create default config file
+ *   cr bot status              — Check if bot config is valid
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -154,7 +154,7 @@ async function runBotCommand(subcommand, extraArgs) {
             const { existsSync } = await Promise.resolve().then(() => __importStar(require('fs')));
             if (!existsSync(configPath)) {
                 console.log(chalk_1.default.red('❌ Bot config not found:'), configPath);
-                console.log(chalk_1.default.dim('Run: kcc bot init'));
+                console.log(chalk_1.default.dim('Run: cr bot init'));
                 process.exit(1);
             }
             const config = (0, config_1.loadBotConfig)();
