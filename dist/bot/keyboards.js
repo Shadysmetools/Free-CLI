@@ -65,11 +65,16 @@ function fileActionsKeyboard(filePath) {
 /** Model/provider selection keyboard */
 function modelKeyboard(current) {
     const models = [
-        { label: 'Llama 3.3 70B (free)', value: 'openrouter:meta-llama/llama-3.3-70b-instruct:free' },
-        { label: 'Gemini Flash (free)', value: 'google:gemini-2.0-flash' },
-        { label: 'Claude Haiku', value: 'anthropic:claude-haiku-4-20251128' },
-        { label: 'GPT-4o mini', value: 'openai:gpt-4o-mini' },
-        { label: 'DeepSeek R1 (free)', value: 'openrouter:deepseek/deepseek-r1:free' },
+        // Free models
+        { label: '🆓 Auto Free (OpenRouter)', value: 'openrouter:openrouter/free' },
+        { label: '🆓 Llama 3.3 70B (Groq)', value: 'groq:llama-3.3-70b-versatile' },
+        { label: '🆓 Gemini 2.5 Flash', value: 'google:gemini-2.5-flash' },
+        { label: '🆓 Devstral (Mistral)', value: 'mistral:devstral-small-latest' },
+        { label: '🆓 DeepSeek R1', value: 'openrouter:deepseek/deepseek-r1:free' },
+        { label: '🆓 Qwen 3 30B', value: 'openrouter:qwen/qwen3-30b-a3b:free' },
+        // BYOK models
+        { label: '💰 Claude Sonnet 4.5', value: 'anthropic:claude-sonnet-4-5' },
+        { label: '💰 GPT-4o', value: 'openai:gpt-4o' },
     ];
     const kb = new grammy_1.InlineKeyboard();
     for (const model of models) {
