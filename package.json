@@ -9,7 +9,7 @@
     "kcc": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc && cp -r src/skills/builtins dist/skills/",
+    "build": "tsc && node -e \"require('fs').cpSync('src/skills/builtins','dist/skills/builtins',{recursive:true})\"",
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"

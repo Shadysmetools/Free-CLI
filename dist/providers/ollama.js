@@ -68,7 +68,13 @@ class OllamaProvider {
             messages: messages.map(m => ({
                 role: m.role === 'tool' ? 'tool' : m.role,
                 content: m.content,
-                tool_calls: m.tool_calls,
+                // Ollama expects tool-call arguments as an object, but we store them as a
+                // JSON string internally. Parse them back for the outgoing request, else
+                // Ollama 400s: "Value looks like object, but can't find closing '}'".
+                tool_calls: m.tool_calls?.map(tc => ({
+                    ...tc,
+                    function: { name: tc.function.name, arguments: parseToolArgs(tc.function.arguments) },
+                })),
                 tool_call_id: m.tool_call_id,
             })),
             tools: ollamaTools,
@@ -85,7 +91,7 @@ class OllamaProvider {
         const msg = data.message || {};
         const content = msg.content || '';
         const rawToolCalls = msg.tool_calls;
-        const tool_calls = rawToolCalls?.map((tc, i) => ({
+        let tool_calls = rawToolCalls?.map((tc, i) => ({
             id: `call_${i}`,
             type: 'function',
             function: {
@@ -95,8 +101,19 @@ class OllamaProvider {
                     : JSON.stringify(tc.function.arguments),
             },
         }));
+        // Repair: some local models (notably Qwen2.5-Coder on Ollama) emit tool
+        // calls as JSON text in `content` instead of the native `tool_calls` field.
+        // Recover them so the agent loop can actually execute the call.
+        let outContent = content;
+        if (!tool_calls || tool_calls.length === 0) {
+            const recovered = recoverToolCallsFromText(content);
+            if (recovered.length > 0) {
+                tool_calls = recovered;
+                outContent = '';
+            }
+        }
         return {
-            content,
+            content: outContent,
             tool_calls,
             usage: {
                 prompt_tokens: data.prompt_eval_count || 0,
@@ -204,4 +221,106 @@ class OllamaProvider {
     }
 }
 exports.OllamaProvider = OllamaProvider;
+/**
+ * Recover tool calls a model emitted as JSON text in `content`. Handles bare
+ * objects, arrays, ```json fences, and <tool_call>…</tool_call> wrappers.
+ */
+function recoverToolCallsFromText(content) {
+    const text = (content || '').trim();
+    if (!text)
+        return [];
+    const candidates = [];
+    const tagRe = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
+    let m;
+    while ((m = tagRe.exec(text)) !== null)
+        candidates.push(m[1].trim());
+    if (candidates.length === 0) {
+        const fenceRe = /```(?:json)?\s*([\s\S]*?)```/g;
+        while ((m = fenceRe.exec(text)) !== null)
+            candidates.push(m[1].trim());
+    }
+    if (candidates.length === 0) {
+        const firstBrace = text.search(/[[{]/);
+        if (firstBrace >= 0)
+            candidates.push(text.slice(firstBrace));
+    }
+    const out = [];
+    for (const cand of candidates) {
+        for (const o of parseToolObjects(cand)) {
+            const name = typeof o.name === 'string' ? o.name : '';
+            if (!name)
+                continue;
+            const rawArgs = o.arguments ?? o.parameters ?? {};
+            const argsStr = typeof rawArgs === 'string' ? rawArgs : JSON.stringify(rawArgs);
+            out.push({ id: `call_${out.length}`, type: 'function', function: { name, arguments: argsStr } });
+        }
+    }
+    return out;
+}
+function parseToolObjects(text) {
+    const whole = safeJsonParse(text);
+    if (whole !== undefined) {
+        if (Array.isArray(whole))
+            return whole.filter(isToolish);
+        if (isToolish(whole))
+            return [whole];
+        return [];
+    }
+    const obj = extractFirstJsonObject(text);
+    if (obj) {
+        const parsed = safeJsonParse(obj);
+        if (isToolish(parsed))
+            return [parsed];
+    }
+    return [];
+}
+function isToolish(v) {
+    return typeof v === 'object' && v !== null && 'name' in v;
+}
+function safeJsonParse(s) {
+    try {
+        return JSON.parse(s);
+    }
+    catch {
+        return undefined;
+    }
+}
+function extractFirstJsonObject(text) {
+    const start = text.indexOf('{');
+    if (start < 0)
+        return null;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (inStr) {
+            if (esc)
+                esc = false;
+            else if (ch === '\\')
+                esc = true;
+            else if (ch === '"')
+                inStr = false;
+        }
+        else if (ch === '"')
+            inStr = true;
+        else if (ch === '{')
+            depth++;
+        else if (ch === '}') {
+            depth--;
+            if (depth === 0)
+                return text.slice(start, i + 1);
+        }
+    }
+    return null;
+}
+/** Ollama wants tool-call arguments as an object; we store them as a JSON string. */
+function parseToolArgs(args) {
+    if (typeof args !== 'string')
+        return args;
+    try {
+        return JSON.parse(args);
+    }
+    catch {
+        return args;
+    }
+}
 //# sourceMappingURL=ollama.js.map
