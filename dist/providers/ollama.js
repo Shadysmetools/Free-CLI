@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OllamaProvider = void 0;
 exports.recoverToolCallsFromText = recoverToolCallsFromText;
 exports.recoverFromStreamedContent = recoverFromStreamedContent;
+const embeddings_1 = require("../match/embeddings");
 const http = __importStar(require("http"));
 const https = __importStar(require("https"));
 const url_1 = require("url");
@@ -123,6 +124,15 @@ class OllamaProvider {
                 total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
             },
         };
+    }
+    /** Semantic embeddings via Ollama /api/embed. Reuses the tested match/embeddings logic. */
+    async embed(texts, model) {
+        return (0, embeddings_1.embed)(texts, {
+            baseUrl: this.baseUrl,
+            model,
+            // this.httpPost returns the raw body string; embedTexts JSON-parses it.
+            httpPost: (url, body) => this.httpPost(url, body),
+        });
     }
     async streamComplete(body, onToken) {
         return new Promise((resolve, reject) => {

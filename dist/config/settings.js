@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS = {
         ollama: {
             baseUrl: 'http://localhost:11434',
             model: 'qwen2.5-coder:7b',
+            embeddingsModel: 'nomic-embed-text',
         },
         groq: {
             model: 'llama-3.3-70b-versatile',
@@ -96,6 +97,13 @@ const DEFAULT_SETTINGS = {
         goal: { maxRounds: 5 },
     },
     research: { maxQueries: 5, maxSources: 8 },
+    router: {
+        enabled: true,
+        confidenceThreshold: 0.6,
+        confirmGoal: true,
+        autoRunSafe: true,
+        llmAssist: false,
+    },
 };
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */
 function getDefaultSettings() {

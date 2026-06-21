@@ -50,6 +50,8 @@ export interface Provider {
     model: string;
     complete(options: CompletionOptions): Promise<CompletionResult>;
     isAvailable(): Promise<boolean>;
+    /** Optional semantic embeddings (implemented by Ollama). Returns null on failure. */
+    embed?(texts: string[], model: string): Promise<number[][] | null>;
 }
 export declare function createProvider(providerName: string, settings: Settings): Provider;
 export declare const PROVIDER_LIST: readonly ["ollama", "groq", "anthropic", "openai", "google", "openrouter", "mistral", "custom"];
