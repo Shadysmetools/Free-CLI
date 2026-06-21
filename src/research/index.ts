@@ -105,6 +105,12 @@ export async function runResearch(opts: ResearchOptions, ctx: RunnerContext, dep
   };
 }
 
+/** URL/file-safe slug for a research question. Never empty. */
+export function slugify(s: string): string {
+  const base = (s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50).replace(/-+$/g, '');
+  return base || 'research';
+}
+
 /** Parse a scope sub-agent's output into a list of search queries. */
 export function parseQueries(text: string, cap = 5): string[] {
   const t = (text ?? '').trim();

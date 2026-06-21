@@ -40,6 +40,7 @@ import { listRoles, BUILTIN_ROLES } from './agents/roles';
 import { generateDiagram as renderDiagram, generateImage as renderImage, detectDiagramType, buildDiagramPrompt, mermaidPreview } from './diagrams/index';
 import { PersonaManager, resolvePersonaId } from './persona/index';
 import { loadWorkflows, workflowDirs, runWorkflow, runGoal, registerWorkflowTools, setWorkflowRuntime, parseInputArgs, buildRunnerContext } from './workflow/index';
+import { runResearch, slugify } from './research/index';
 
 export interface CLIOptions {
   provider?: string;
@@ -1596,6 +1597,22 @@ Be specific about filenames and actions. Max 8 steps.`;
       if (!go) { printInfo('Cancelled.'); break; }
       const res = await runGoal({ goal: goalText, allow: allowList }, buildRunnerContext(ctx));
       console.log(`\n  ${res.ok ? chalk.green('✓ ' + res.summary) : chalk.yellow('• ' + res.summary)} ${chalk.dim(`(${res.usage.total_tokens} tokens, stopped: ${res.stoppedBy})`)}`);
+      break;
+    }
+
+    // ── Research ──────────────────────────────────────────────────────────────
+    case 'research': {
+      const question = args.join(' ').replace(/^["']|["']$/g, '').trim();
+      if (!question) { printError('Usage: /research "<question>"'); break; }
+      printInfo(`Researching: ${question}`);
+      const res = await runResearch({ question }, buildRunnerContext(ctx));
+      if (res.stoppedBy === 'no_sources') { printError(res.report); break; }
+      printSectionHeader(`🔬 Research: ${question}`);
+      console.log(res.report);
+      const file = path.join(ctx.cwd, `research-${slugify(question)}.md`);
+      const header = `# Research: ${question}\n\n_Queries: ${res.queries.join('; ')}_\n_Sources:_\n${res.sources.map(s => `- [${s.title}](${s.url})`).join('\n')}\n\n---\n\n`;
+      fs.writeFileSync(file, header + res.report, 'utf-8');
+      printInfo(`Saved → ${file}  (${res.usage.total_tokens} tokens, ${res.sources.length} sources)`);
       break;
     }
 
