@@ -122,6 +122,22 @@ export class SkillsManager {
     return this.skills.get(name);
   }
 
+  /** Compact catalog (name — description) of enabled skills for the system prompt. '' when none. */
+  getCatalog(): string {
+    const enabled = this.list().filter(s => s.enabled);
+    if (enabled.length === 0) return '';
+    const lines = enabled.map(s => `- ${s.name} — ${s.description}`).join('\n');
+    return `\n\n## Available Skills\nLoad a skill's full instructions with the \`skill\` tool (or /skill <name>) when one is relevant:\n${lines}\n`;
+  }
+
+  /** Look up + ensure enabled; returns the skill (with body) or undefined for an unknown name. */
+  activate(name: string): Skill | undefined {
+    const s = this.skills.get(name);
+    if (!s) return undefined;
+    s.enabled = true;
+    return s;
+  }
+
   /**
    * Auto-detect skills relevant to the user's message.
    * Uses keyword matching against name + description fields.
