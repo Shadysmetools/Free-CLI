@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { SkillsManager } from './index';
 
 // Loads the real builtin skills (src/skills/builtins/*) — github, npm, docker, debug, git-workflow.
