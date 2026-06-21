@@ -1606,7 +1606,7 @@ Be specific about filenames and actions. Max 8 steps.`;
       if (!question) { printError('Usage: /research "<question>"'); break; }
       printInfo(`Researching: ${question}`);
       const res = await runResearch({ question }, buildRunnerContext(ctx));
-      if (res.stoppedBy === 'no_sources') { printError(res.report); break; }
+      if (res.stoppedBy === 'no_sources' || res.stoppedBy === 'error') { printError(res.report); break; }
       printSectionHeader(`🔬 Research: ${question}`);
       console.log(res.report);
       const file = path.join(ctx.cwd, `research-${slugify(question)}.md`);
