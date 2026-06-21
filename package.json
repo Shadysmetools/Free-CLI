@@ -45,6 +45,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/inquirer": "^8.2.12",
+    "@vscode/ripgrep": "^1.18.0",
     "axios": "^1.6.0",
     "better-sqlite3": "^12.8.0",
     "chalk": "^4.1.2",
