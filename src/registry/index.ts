@@ -10,11 +10,11 @@
  */
 
 import { Tool } from '../providers/index';
-import { ToolResult } from '../agent/tools';
+import { ToolResult, TOOLS as _BUILTIN_TOOLS } from '../agent/tools';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ToolCategory = 'file' | 'shell' | 'git' | 'mcp' | 'whisper' | 'memory' | 'document' | 'visual' | 'custom';
+export type ToolCategory = 'file' | 'shell' | 'git' | 'mcp' | 'whisper' | 'memory' | 'document' | 'visual' | 'web' | 'custom';
 
 export interface RegisteredTool extends Tool {
   category: ToolCategory;
@@ -121,7 +121,7 @@ export class ToolRegistry {
       byCategory.set(tool.category, list);
     }
 
-    const categoryOrder: ToolCategory[] = ['file', 'shell', 'git', 'memory', 'document', 'visual', 'whisper', 'mcp', 'custom'];
+    const categoryOrder: ToolCategory[] = ['file', 'shell', 'git', 'memory', 'document', 'visual', 'web', 'whisper', 'mcp', 'custom'];
     const lines: string[] = [''];
 
     for (const cat of categoryOrder) {
@@ -175,6 +175,7 @@ function categoryLabel(cat: ToolCategory): string {
     memory: '🧠 Memory Tools',
     document: '📑 Document Tools',
     visual: '🎨 Visual / Diagram Tools',
+    web: '🌐 Web Tools',
     whisper: '🎤 Whisper Tools',
     mcp: '🔌 MCP Tools',
     custom: '🔧 Custom Tools',
@@ -215,6 +216,12 @@ export function createDefaultRegistry(): ToolRegistry {
     if (tool) registry.register(tool, 'visual');
   }
 
+  // Web tools
+  for (const name of ['web_search', 'web_fetch']) {
+    const tool = getBuiltinTool(name);
+    if (tool) registry.register(tool, 'web');
+  }
+
   // Memory tools (definitions only — execution handled by memory system)
   registry.register({
     name: 'memory_search',
@@ -244,8 +251,13 @@ export function createDefaultRegistry(): ToolRegistry {
   return registry;
 }
 
-/** Lazy-import TOOLS to avoid circular deps */
+/** Look up a builtin tool by name. Uses the static import first (works in ESM/vitest),
+ *  falls back to require() for any legacy CJS callers. */
 function getBuiltinTool(name: string): Tool | null {
+  // Primary: use the statically-imported TOOLS array (always available)
+  const fromStatic = _BUILTIN_TOOLS.find((t: Tool) => t.name === name);
+  if (fromStatic) return fromStatic;
+  // Fallback: CJS require (for runtime contexts where the static import may differ)
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TOOLS } = require('../agent/tools') as { TOOLS: Tool[] };

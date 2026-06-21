@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as child_process from 'child_process';
 import { Tool } from '../providers/index';
 import { setPlan, normalizePlanItems, planToSteps, planSummary } from './plan';
+import { executeWebSearch, executeWebFetch } from '../bot/web_tools';
 
 // ─── PDF / Excel lazy imports (runtime-only, avoid tsc issues) ────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,6 +294,16 @@ export const TOOLS: Tool[] = [
       required: ['items'],
     },
   },
+  {
+    name: 'web_search',
+    description: 'Search the web for current information, docs, or any topic. Returns titles, snippets, and URLs.',
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'The search query. Be specific.' } }, required: ['query'] },
+  },
+  {
+    name: 'web_fetch',
+    description: 'Fetch a URL and return its readable text (HTML stripped). Use to read docs, articles, or pages.',
+    parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full http(s) URL' }, max_chars: { type: 'number', description: 'Max chars to return (default 8000)' } }, required: ['url'] },
+  },
 ];
 
 export async function executeTool(
@@ -323,6 +334,8 @@ export async function executeTool(
         const { executeWorkflowTool } = require('../workflow/tools') as typeof import('../workflow/tools');
         return executeWorkflowTool(name, args, cwd);
       }
+      case 'web_search': return executeWebSearch(String(args.query ?? ''));
+      case 'web_fetch': return executeWebFetch(String(args.url ?? ''), typeof args.max_chars === 'number' ? (args.max_chars as number) : 8000);
       default: return { content: `Unknown tool: ${name}`, isError: true };
     }
   } catch (err) {
