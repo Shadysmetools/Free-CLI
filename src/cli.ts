@@ -41,6 +41,7 @@ import { generateDiagram as renderDiagram, generateImage as renderImage, detectD
 import { PersonaManager, resolvePersonaId } from './persona/index';
 import { loadWorkflows, workflowDirs, runWorkflow, runGoal, registerWorkflowTools, setWorkflowRuntime, parseInputArgs, buildRunnerContext } from './workflow/index';
 import { runResearch, slugify } from './research/index';
+import { classifyIntent, applyRouterCommand } from './router/index';
 
 export interface CLIOptions {
   provider?: string;
@@ -50,6 +51,16 @@ export interface CLIOptions {
   oneShot?: string;
   resumeSession?: string;  // session id to resume
   noHistory?: boolean;     // skip history auto-save
+}
+
+/** The pre-authorized safe tool set used when the router auto-pursues a goal. */
+export function defaultGoalAllowList(): string[] {
+  return ['run_command', 'read_file', 'write_file', 'edit_file', 'search_files', 'list_files'];
+}
+
+/** Dim one-line notice shown when the router takes a non-chat action. */
+export function routerNotice(d: { kind: string; target?: string; reason: string }): string {
+  return `→ routing to ${d.kind}${d.target ? ` (${d.target})` : ''} — ${d.reason}`;
 }
 
 export async function startCLI(opts: CLIOptions = {}): Promise<void> {
@@ -252,6 +263,72 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
     if (input.startsWith('/')) {
       await handleSlashCommand(input, makeSlashCtx());
       continue;
+    }
+
+    // ── Natural-language intent routing (no slash needed) ───────────────────
+    // The router NEVER blocks input: any error or low-confidence → normal chat.
+    if (settings.router?.enabled !== false) {
+      try {
+        const ollamaEmbed = providerName === 'ollama' && typeof provider.embed === 'function'
+          ? (texts: string[]) => provider.embed!(texts, settings.providers.ollama?.embeddingsModel || 'nomic-embed-text')
+          : undefined;
+        const routerCtx = {
+          skills: skills.list().map(s => ({ name: s.name, description: s.description })),
+          workflows: Array.from(loadWorkflows(workflowDirs(cwd)).values())
+            .map(w => ({ name: w.name, description: (w as { description?: string }).description })),
+          threshold: settings.router?.confidenceThreshold ?? 0.6,
+          embed: ollamaEmbed,
+        };
+        const decision = await classifyIntent(input, routerCtx);
+        if (decision.kind !== 'chat') {
+          console.log(chalk.dim('  ' + routerNotice(decision)));
+        }
+
+        if (decision.kind === 'research') {
+          history.addMessage({ role: 'user', content: input });
+          const res = await runResearch({ question: input }, buildRunnerContext(makeSlashCtx()));
+          if (res.stoppedBy === 'no_sources' || res.stoppedBy === 'error') {
+            printError(res.report);
+          } else {
+            printSectionHeader('🔬 Research'); console.log(res.report);
+            const file = path.join(cwd, `research-${slugify(input)}.md`);
+            const header = `# Research: ${input}\n\n_Sources:_\n${res.sources.map(s => `- [${s.title}](${s.url})`).join('\n')}\n\n---\n\n`;
+            fs.writeFileSync(file, header + res.report, 'utf-8');
+            printInfo(`Saved → ${file}  (${res.usage.total_tokens} tokens, ${res.sources.length} sources)`);
+          }
+          continue;
+        }
+
+        if (decision.kind === 'workflow' && decision.target) {
+          const def = loadWorkflows(workflowDirs(cwd)).get(decision.target);
+          if (def) {
+            history.addMessage({ role: 'user', content: input });
+            const run = await runWorkflow(def, {}, buildRunnerContext(makeSlashCtx()));
+            console.log(`\n${run.ok ? chalk.green('Workflow complete.') : chalk.yellow('Workflow finished with failures.')} ${chalk.dim(`(${run.usage.total_tokens} tokens)`)}`);
+            const last = run.steps[run.steps.length - 1];
+            if (last?.output) { printSectionHeader(`Output: ${last.id}`); console.log(last.output); }
+            continue;
+          }
+          // target vanished → fall through to chat
+        }
+
+        if (decision.kind === 'goal') {
+          let go = true;
+          if (settings.router?.confirmGoal !== false) {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+            const inq = require('inquirer') as any;
+            ({ go } = await inq.prompt([{ type: 'confirm', name: 'go', message: `Pursue "${input}" as an autonomous goal?`, default: false }]));
+          }
+          if (go) {
+            history.addMessage({ role: 'user', content: input });
+            const res = await runGoal({ goal: input, allow: defaultGoalAllowList() }, buildRunnerContext(makeSlashCtx()));
+            console.log(`\n  ${res.ok ? chalk.green('✓ ' + res.summary) : chalk.yellow('• ' + res.summary)} ${chalk.dim(`(${res.usage.total_tokens} tokens, stopped: ${res.stoppedBy})`)}`);
+            continue;
+          }
+          // declined → fall through to normal chat
+        }
+        // 'skill' or 'chat' → fall through to runAgent (skill context auto-injected there)
+      } catch { /* router must never break chat */ }
     }
 
     // Regular message → run agent
@@ -1613,6 +1690,14 @@ Be specific about filenames and actions. Max 8 steps.`;
       const header = `# Research: ${question}\n\n_Queries: ${res.queries.join('; ')}_\n_Sources:_\n${res.sources.map(s => `- [${s.title}](${s.url})`).join('\n')}\n\n---\n\n`;
       fs.writeFileSync(file, header + res.report, 'utf-8');
       printInfo(`Saved → ${file}  (${res.usage.total_tokens} tokens, ${res.sources.length} sources)`);
+      break;
+    }
+
+    // ── Router ──────────────────────────────────────────────────────────────────
+    case 'router': {
+      const { message, changed } = applyRouterCommand(ctx.settings, args[0]);
+      if (changed) saveSettings(ctx.settings);
+      printInfo(message);
       break;
     }
 
