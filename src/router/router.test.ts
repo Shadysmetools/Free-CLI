@@ -58,6 +58,23 @@ describe('classifyIntent — never throws', () => {
   });
 });
 
+describe('classifyIntent — invocation-cue gate (real hybrid)', () => {
+  const realCtx = {
+    skills: [],
+    workflows: [{ name: 'deploy-app', description: 'deploy the application to production' }],
+    threshold: 0.6,
+  };
+  it('bare description overlap WITHOUT an invocation cue → chat', async () => {
+    const d = await classifyIntent('the application broke in production today', realCtx);
+    expect(d.kind).toBe('chat');
+  });
+  it('an explicit invocation cue + real hybrid match → workflow', async () => {
+    const d = await classifyIntent('run the deploy-app workflow', realCtx);
+    expect(d.kind).toBe('workflow');
+    expect(d.target).toBe('deploy-app');
+  });
+});
+
 describe('applyRouterCommand', () => {
   it('on/off mutate settings; status reports', () => {
     const s: any = { router: { enabled: true } };

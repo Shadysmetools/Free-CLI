@@ -20,6 +20,11 @@ const GOAL_RE = /\b(keep going until|autonomously|do everything|pursue|accomplis
 const GOAL_VERB_RE = /\b(build|implement|create|refactor|fix|add)\b/i;
 const CODE_RE = /(=>|;\s*$|\{[\s\S]*\}|```|\bfunction\b|\bconst\b\s+\w+\s*=)/;
 
+// Invocation cues — the user must signal they want to run/use a named thing.
+// hybridSearch normalizes its top hit to 1.0, so the score alone cannot gate
+// routing; without an explicit cue, bare token overlap would hijack chat.
+const INVOKE_RE = /\b(run|use|execute|start|launch|invoke|trigger|apply|workflow|skill|pipeline)\b/i;
+
 const RESEARCH_CONF = 0.75;
 const GOAL_STRONG_CONF = 0.7;
 const GOAL_WEAK_CONF = 0.62;
@@ -48,7 +53,8 @@ export async function classifyIntent(text: string, ctx: RouterContext, deps: Rou
       ...ctx.workflows.map(w => ({ id: w.name, text: `${w.name} ${w.description ?? ''}` })),
       ...ctx.skills.map(s => ({ id: s.name, text: `${s.name} ${s.description}` })),
     ];
-    if (docs.length > 0) {
+    // Only when the text reads as an explicit invocation (cue word present).
+    if (docs.length > 0 && INVOKE_RE.test(t)) {
       const hits = await hybrid(t, docs, { embed: ctx.embed, topK: 1 });
       const top = hits[0];
       if (top && top.score >= ctx.threshold) {
