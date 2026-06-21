@@ -6,6 +6,7 @@ import { OpenAIProvider } from './openai';
 import { GoogleProvider } from './google';
 import { OpenRouterProvider } from './openrouter';
 import { MistralProvider } from './mistral';
+import { CustomProvider } from './custom';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -104,12 +105,19 @@ export function createProvider(providerName: string, settings: Settings): Provid
         cfg.model || 'devstral-small-latest',
         cfg.apiKey
       );
+    case 'custom':
+      return new CustomProvider(
+        cfg.model || process.env.CUSTOM_MODEL || 'gpt-4o-mini',
+        cfg.apiKey,
+        cfg.baseUrl,
+        cfg.headers
+      );
     default:
       throw new Error(`Unknown provider: ${providerName}`);
   }
 }
 
-export const PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter', 'mistral'] as const;
+export const PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter', 'mistral', 'custom'] as const;
 export type ProviderName = typeof PROVIDER_LIST[number];
 
 export const FREE_PROVIDERS = ['ollama', 'groq', 'google', 'openrouter', 'mistral'] as const;
@@ -122,6 +130,7 @@ export const PROVIDER_INFO: Record<string, { description: string; requiresKey: b
   anthropic: { description: 'Claude models (BYOK)', requiresKey: true, free: false },
   openai: { description: 'GPT models (BYOK)', requiresKey: true, free: false },
   mistral: { description: 'Mistral/Devstral/Codestral — free tier', requiresKey: true, free: true },
+  custom: { description: 'Any OpenAI-compatible endpoint (base URL + key + model)', requiresKey: true, free: false },
 };
 
 /**
@@ -180,5 +189,10 @@ export const PROVIDER_MODELS: Record<string, Array<{ id: string; label: string; 
     { id: 'gpt-4o-mini',  label: 'GPT-4o Mini',     free: false },
     { id: 'o1-mini',      label: 'o1 Mini (reason)', free: false },
     { id: 'o3-mini',      label: 'o3 Mini (reason)', free: false },
+  ],
+  custom: [
+    // The model id for a custom endpoint is user-defined (CUSTOM_MODEL /
+    // providers.custom.model). This entry is a placeholder for /models UX.
+    { id: 'gpt-4o-mini', label: 'Custom endpoint model (set CUSTOM_MODEL)', free: false, recommended: true },
   ],
 };
