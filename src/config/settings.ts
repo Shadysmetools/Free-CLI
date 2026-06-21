@@ -38,6 +38,15 @@ export interface Settings {
   };
   openclaw?: OpenClawConfig;
   budget?: number;  // Session budget limit in USD
+  permissions?: {
+    enabled?: boolean;
+    projectRoot?: string;            // 'auto' | absolute path
+    allow?: string[];
+    ask?: string[];
+    deny?: string[];
+    unattended?: 'deny' | 'allow';
+    confirmDefault?: 'approve' | 'skip';
+  };
 }
 
 // Windows: use %APPDATA%\coderaw, Unix: ~/.coderaw
@@ -78,6 +87,15 @@ const DEFAULT_SETTINGS: Settings = {
   },
   whisper: {
     model: 'base',
+  },
+  permissions: {
+    enabled: true,
+    projectRoot: 'auto',
+    allow: [],
+    ask: [],
+    deny: [],
+    unattended: 'deny',
+    confirmDefault: 'approve',
   },
 };
 

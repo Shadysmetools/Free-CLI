@@ -11,6 +11,7 @@ const tools_1 = require("./tools");
 Object.defineProperty(exports, "fileChanges", { enumerable: true, get: function () { return tools_1.fileChanges; } });
 const terminal_1 = require("../ui/terminal");
 const fallback_1 = require("../providers/fallback");
+const permissions_1 = require("../permissions");
 const chalk_1 = __importDefault(require("chalk"));
 /** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
 function looksLikeToolAttempt(content) {
@@ -25,8 +26,18 @@ function looksLikeToolAttempt(content) {
 }
 async function runAgent(providerArg, conversation, userMessage, options) {
     let provider = providerArg;
-    const { cwd, stream, onToken, maxIterations = 10, mcpClient, registry, memory, skills, tokenTracker, } = options;
+    const { cwd, stream, onToken, maxIterations = 10, mcpClient, registry, memory, skills, tokenTracker, permissions, unattended, sessionAllow, } = options;
     const turnStart = Date.now();
+    // ── Permission gate context (built once per turn) ─────────────────────────
+    const gateCtx = permissions
+        ? {
+            cwd,
+            rules: permissions,
+            isInteractive: Boolean(process.stdout.isTTY) && !unattended,
+            sessionAllow: sessionAllow ?? new Set(),
+            persistAllow: permissions_1.persistAllowPattern,
+        }
+        : undefined;
     // ── Skill injection ───────────────────────────────────────────────────────
     if (skills) {
         const skillCtx = skills.getSkillContext(userMessage);
@@ -161,6 +172,22 @@ async function runAgent(providerArg, conversation, userMessage, options) {
                 toolArgs = JSON.parse(toolCall.function.arguments);
             }
             catch { /* ignore */ }
+            // ── Permission gate ───────────────────────────────────────────────────
+            if (gateCtx) {
+                const decision = await (0, permissions_1.gate)(toolName, toolArgs, gateCtx);
+                if (!decision.allowed) {
+                    (0, terminal_1.printToolCall)(toolName, toolArgs);
+                    // Always-visible denial (printToolResult hides content in non-verbose mode)
+                    process.stdout.write(`\n  ${chalk_1.default.yellow(`⛔ ${decision.reasonForModel ?? 'Not permitted.'}`)}\n`);
+                    (0, conversation_1.addMessage)(conversation, {
+                        role: 'tool',
+                        content: decision.reasonForModel ?? 'Action not permitted by user permission rules.',
+                        tool_call_id: toolCall.id,
+                        name: toolName,
+                    });
+                    continue;
+                }
+            }
             (0, terminal_1.printToolCall)(toolName, toolArgs);
             let toolResult;
             try {

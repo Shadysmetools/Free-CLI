@@ -6,6 +6,7 @@ import { ToolRegistry } from '../registry/index';
 import { MemoryManager } from '../memory/index';
 import { SkillsManager } from '../skills/index';
 import { TokenTracker } from '../tracking/tokens';
+import { Rules } from '../permissions';
 export interface AgentOptions {
     cwd: string;
     stream: boolean;
@@ -16,6 +17,9 @@ export interface AgentOptions {
     memory?: MemoryManager;
     skills?: SkillsManager;
     tokenTracker?: TokenTracker;
+    permissions?: Rules;
+    unattended?: boolean;
+    sessionAllow?: Set<string>;
 }
 export interface AgentResult {
     content: string;
