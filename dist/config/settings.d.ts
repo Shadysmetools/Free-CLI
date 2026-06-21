@@ -2,6 +2,7 @@ export interface ProviderConfig {
     apiKey?: string;
     baseUrl?: string;
     model?: string;
+    headers?: Record<string, string>;
 }
 export interface MCPServerConfig {
     command: string;

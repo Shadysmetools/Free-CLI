@@ -9,6 +9,7 @@ const openai_1 = require("./openai");
 const google_1 = require("./google");
 const openrouter_1 = require("./openrouter");
 const mistral_1 = require("./mistral");
+const custom_1 = require("./custom");
 function createProvider(providerName, settings) {
     const cfg = settings.providers[providerName] || {};
     switch (providerName) {
@@ -26,11 +27,13 @@ function createProvider(providerName, settings) {
             return new openrouter_1.OpenRouterProvider(cfg.model || 'openrouter/free', cfg.apiKey, cfg.baseUrl);
         case 'mistral':
             return new mistral_1.MistralProvider(cfg.model || 'devstral-small-latest', cfg.apiKey);
+        case 'custom':
+            return new custom_1.CustomProvider(cfg.model || process.env.CUSTOM_MODEL || 'gpt-4o-mini', cfg.apiKey, cfg.baseUrl, cfg.headers);
         default:
             throw new Error(`Unknown provider: ${providerName}`);
     }
 }
-exports.PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter', 'mistral'];
+exports.PROVIDER_LIST = ['ollama', 'groq', 'anthropic', 'openai', 'google', 'openrouter', 'mistral', 'custom'];
 exports.FREE_PROVIDERS = ['ollama', 'groq', 'google', 'openrouter', 'mistral'];
 exports.PROVIDER_INFO = {
     ollama: { description: 'Local models — completely free, no API key', requiresKey: false, free: true },
@@ -40,6 +43,7 @@ exports.PROVIDER_INFO = {
     anthropic: { description: 'Claude models (BYOK)', requiresKey: true, free: false },
     openai: { description: 'GPT models (BYOK)', requiresKey: true, free: false },
     mistral: { description: 'Mistral/Devstral/Codestral — free tier', requiresKey: true, free: true },
+    custom: { description: 'Any OpenAI-compatible endpoint (base URL + key + model)', requiresKey: true, free: false },
 };
 /**
  * Curated model lists per provider (for /models command and tab-completion).
@@ -97,6 +101,11 @@ exports.PROVIDER_MODELS = {
         { id: 'gpt-4o-mini', label: 'GPT-4o Mini', free: false },
         { id: 'o1-mini', label: 'o1 Mini (reason)', free: false },
         { id: 'o3-mini', label: 'o3 Mini (reason)', free: false },
+    ],
+    custom: [
+        // The model id for a custom endpoint is user-defined (CUSTOM_MODEL /
+        // providers.custom.model). This entry is a placeholder for /models UX.
+        { id: 'gpt-4o-mini', label: 'Custom endpoint model (set CUSTOM_MODEL)', free: false, recommended: true },
     ],
 };
 //# sourceMappingURL=index.js.map

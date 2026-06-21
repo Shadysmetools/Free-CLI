@@ -40,6 +40,7 @@ exports.applyEdit = applyEdit;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
+const plan_1 = require("./plan");
 // Track file changes for undo
 exports.fileChanges = [];
 /** Path to the bundled ripgrep binary, or null if unavailable. */
@@ -298,6 +299,21 @@ exports.TOOLS = [
             required: ['title', 'sheets', 'output_path'],
         },
     },
+    {
+        name: 'update_plan',
+        description: 'Create or update the task plan for the current turn (Claude-Code-style TODO list). Pass the COMPLETE list of steps each time — this REPLACES the current plan, it does not append. Mark exactly one step "in_progress" at a time, flip finished steps to "completed", and leave upcoming work "pending". Use this to break a non-trivial request into visible steps and keep the user informed of progress.',
+        parameters: {
+            type: 'object',
+            properties: {
+                items: {
+                    type: 'array',
+                    description: 'Ordered list of plan steps. Each item is an object: { "content": string, "status": "pending" | "in_progress" | "completed" }. Provide the full plan every call.',
+                    items: { type: 'object' },
+                },
+            },
+            required: ['items'],
+        },
+    },
 ];
 async function executeTool(name, args, cwd) {
     try {
@@ -316,6 +332,7 @@ async function executeTool(name, args, cwd) {
             case 'generate_excel': return generateExcel(args, cwd);
             case 'generate_diagram': return generateDiagram(args, cwd);
             case 'generate_image': return generateImage(args, cwd);
+            case 'update_plan': return updatePlan(args);
             default: return { content: `Unknown tool: ${name}`, isError: true };
         }
     }
@@ -327,6 +344,31 @@ function resolvePath(filePath, cwd) {
     if (path.isAbsolute(filePath))
         return filePath;
     return path.resolve(cwd, filePath);
+}
+// ─── Plan / TODO ────────────────────────────────────────────────────────────────
+/**
+ * Maintain the agent's task plan for the current turn. The full list is passed
+ * each call and REPLACES the stored plan. Renders the plan with the existing
+ * printPlanBox helper and returns a compact textual summary for the model.
+ */
+function updatePlan(args) {
+    const items = (0, plan_1.normalizePlanItems)(args.items);
+    if (items.length === 0) {
+        return { content: 'No valid plan items provided. Each item needs a non-empty "content" string and an optional status of pending | in_progress | completed.', isError: true };
+    }
+    (0, plan_1.setPlan)(items);
+    // Render with the existing terminal helper (lazy import keeps this module
+    // free of UI side effects when imported by tests).
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { printPlanBox } = require('../ui/terminal');
+        printPlanBox('Plan', (0, plan_1.planToSteps)(items), (0, plan_1.planSummary)(items));
+    }
+    catch {
+        // UI rendering is best-effort; never fail the tool because of it.
+    }
+    const lines = items.map((it, i) => `  ${i + 1}. [${it.status}] ${it.content}`);
+    return { content: `Plan updated (${(0, plan_1.planSummary)(items)}):\n${lines.join('\n')}` };
 }
 function readFile(args, cwd) {
     const fullPath = resolvePath(args.path, cwd);

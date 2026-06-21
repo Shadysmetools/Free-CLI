@@ -52,7 +52,7 @@ export interface Provider {
     isAvailable(): Promise<boolean>;
 }
 export declare function createProvider(providerName: string, settings: Settings): Provider;
-export declare const PROVIDER_LIST: readonly ["ollama", "groq", "anthropic", "openai", "google", "openrouter", "mistral"];
+export declare const PROVIDER_LIST: readonly ["ollama", "groq", "anthropic", "openai", "google", "openrouter", "mistral", "custom"];
 export type ProviderName = typeof PROVIDER_LIST[number];
 export declare const FREE_PROVIDERS: readonly ["ollama", "groq", "google", "openrouter", "mistral"];
 export declare const PROVIDER_INFO: Record<string, {

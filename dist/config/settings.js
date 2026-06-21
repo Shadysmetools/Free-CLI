@@ -69,6 +69,9 @@ const DEFAULT_SETTINGS = {
             baseUrl: 'https://openrouter.ai/api/v1',
             model: 'openrouter/free',
         },
+        custom: {
+            model: 'gpt-4o-mini',
+        },
     },
     ui: {
         color: true,
@@ -126,6 +129,15 @@ function loadSettings() {
     if (process.env.OLLAMA_BASE_URL) {
         settings.providers.ollama = settings.providers.ollama || {};
         settings.providers.ollama.baseUrl = process.env.OLLAMA_BASE_URL;
+    }
+    if (process.env.CUSTOM_API_KEY || process.env.CUSTOM_BASE_URL || process.env.CUSTOM_MODEL) {
+        settings.providers.custom = settings.providers.custom || {};
+        if (process.env.CUSTOM_API_KEY)
+            settings.providers.custom.apiKey = process.env.CUSTOM_API_KEY;
+        if (process.env.CUSTOM_BASE_URL)
+            settings.providers.custom.baseUrl = process.env.CUSTOM_BASE_URL;
+        if (process.env.CUSTOM_MODEL)
+            settings.providers.custom.model = process.env.CUSTOM_MODEL;
     }
     return settings;
 }

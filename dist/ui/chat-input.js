@@ -46,6 +46,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.sanitizePaste = sanitizePaste;
+exports.resolveSubmit = resolveSubmit;
 exports.isTTYMode = isTTYMode;
 exports.drawInputBox = drawInputBox;
 exports.printThinking = printThinking;
@@ -54,6 +56,59 @@ exports.printAIResponseEnd = printAIResponseEnd;
 exports.readInputWithBox = readInputWithBox;
 const readline = __importStar(require("readline"));
 const chalk_1 = __importDefault(require("chalk"));
+// ─── Pure helpers (unit-tested) ────────────────────────────────────────────────
+/**
+ * Sanitise a raw input chunk (typed or pasted) for storage in the buffer.
+ *
+ * The OLD behaviour stripped ALL newlines (`/[\r\n]/g`), which made pasting
+ * multi-line text impossible. We now PRESERVE embedded newlines so a pasted
+ * block keeps its line structure, while still cleaning up terminal artefacts:
+ *
+ *   • CRLF  ("\r\n")  → "\n"   (Windows / network paste)
+ *   • lone  "\r"      → "\n"   (classic-Mac line ending)
+ *   • a single trailing "\r"   is the terminal's Enter echo → dropped
+ *   • bracketed-paste guards "\x1b[200~" / "\x1b[201~" → stripped
+ *   • other C0 control bytes (except \n and \t) → stripped
+ */
+function sanitizePaste(str) {
+    if (!str)
+        return '';
+    let s = str;
+    // Strip bracketed-paste markers if the terminal forwarded them inline.
+    s = s.replace(/\x1b\[20[01]~/g, '');
+    // A single trailing CR is the terminal's Enter echo, not a real line break.
+    if (s.endsWith('\r') && !s.endsWith('\r\n')) {
+        s = s.slice(0, -1);
+    }
+    // Normalise all remaining CR / CRLF to LF.
+    s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Remove stray escape sequences (CSI / OSC) that some pastes carry.
+    // eslint-disable-next-line no-control-regex
+    s = s.replace(/\x1b\[[0-9;]*[A-Za-z~]/g, '');
+    // Drop remaining C0 control chars except newline (\n) and tab (\t).
+    // eslint-disable-next-line no-control-regex
+    s = s.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+    return s;
+}
+/**
+ * Decide what an Enter keypress means for the given buffer (TTY mode).
+ *
+ * Continuation rule (matches shell / Claude-Code multi-line entry):
+ *   A line ending in an ODD number of backslashes is a continuation —
+ *   the final "\" is the line-continuation marker. It is consumed and a real
+ *   newline is appended, so the user keeps typing on a fresh line.
+ *   An EVEN number of trailing backslashes is literal text → the message
+ *   submits as-is.
+ */
+function resolveSubmit(buffer) {
+    const match = buffer.match(/\\+$/);
+    const trailing = match ? match[0].length : 0;
+    if (trailing % 2 === 1) {
+        // Odd → continuation: drop the marker backslash, add a newline.
+        return { submit: false, buffer: buffer.slice(0, -1) + '\n' };
+    }
+    return { submit: true, buffer };
+}
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 function getInnerWidth() {
     const cols = process.stdout.columns || 80;
@@ -78,13 +133,18 @@ function drawInputBox(text) {
     const dashes = Math.max(1, inner - label.length - 1);
     const top = chalk_1.default.cyan('┌─' + label + '─'.repeat(dashes) + '┐');
     const maxContent = inner - 2;
+    // For multi-line buffers, the box shows the line currently being edited
+    // (the last line). A leading "↵ " marker signals earlier lines are buffered.
+    const newlineCount = (text.match(/\n/g) || []).length;
+    const lastLine = newlineCount > 0 ? text.slice(text.lastIndexOf('\n') + 1) : text;
+    const display = newlineCount > 0 ? '↵ ' + lastLine : lastLine;
     let vis;
-    if (text.length > maxContent) {
+    if (display.length > maxContent) {
         // Show "…" prefix to indicate truncated display (full text still in buffer)
-        vis = '…' + text.slice(text.length - maxContent + 1);
+        vis = '…' + display.slice(display.length - maxContent + 1);
     }
     else {
-        vis = text;
+        vis = display;
     }
     const mid = chalk_1.default.cyan('│ ') + vis.padEnd(maxContent, ' ') + chalk_1.default.cyan(' │');
     const bot = chalk_1.default.cyan('└' + '─'.repeat(inner) + '┘');
@@ -258,8 +318,15 @@ function readLineBoxed() {
                 resolve({ text, eof: text.length === 0 });
                 return;
             }
-            // ── Submit ────────────────────────────────────────────────────────
+            // ── Submit (or continue onto a new line) ──────────────────────────
             if (key.name === 'return' || key.name === 'enter') {
+                // Trailing-backslash continuation → insert a newline, keep editing.
+                const decision = resolveSubmit(buffer);
+                if (!decision.submit) {
+                    buffer = decision.buffer;
+                    redraw();
+                    return;
+                }
                 const text = buffer.trim();
                 if (text.length === 0) {
                     // Empty enter — just redraw box, don't submit
@@ -304,8 +371,10 @@ function readLineBoxed() {
             }
             // ── Regular printable character (or pasted chunk) ────────────────
             if (str && str.length > 0 && !key.ctrl && !key.meta) {
-                // Pasted text can arrive as multi-char string — append all at once
-                const clean = str.replace(/[\r\n]/g, ''); // strip newlines from paste
+                // Pasted text can arrive as a multi-char string — append all at once.
+                // sanitizePaste() PRESERVES embedded newlines (so pasted multi-line
+                // text keeps its structure) while cleaning terminal artefacts.
+                const clean = sanitizePaste(str);
                 if (clean.length > 0) {
                     buffer += clean;
                     redraw();
