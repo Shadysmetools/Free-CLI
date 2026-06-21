@@ -39,6 +39,7 @@ import { ragSearch } from './rag/rerank';
 import { listRoles, BUILTIN_ROLES } from './agents/roles';
 import { generateDiagram as renderDiagram, generateImage as renderImage, detectDiagramType, buildDiagramPrompt, mermaidPreview } from './diagrams/index';
 import { PersonaManager, resolvePersonaId } from './persona/index';
+import { loadWorkflows, workflowDirs, runWorkflow, runGoal, registerWorkflowTools, setWorkflowRuntime, parseInputArgs, buildRunnerContext } from './workflow/index';
 
 export interface CLIOptions {
   provider?: string;
@@ -87,6 +88,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
   skills.loadAll();
   const tokenTracker = new TokenTracker();
   const registry = createDefaultRegistry();
+  registerWorkflowTools(registry);
   const profile = new ProfileManager();
   const persona = new PersonaManager();
   if (mcpClient) {
@@ -273,6 +275,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
       //    visual "thinking" experience (0.5–3 s of API latency).
       printAIResponseStart(tty);
 
+      setWorkflowRuntime(buildRunnerContext(makeSlashCtx()));
       let streamedContent = '';
       const agentResult = await runAgent(provider, conversation, input, {
         cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
@@ -1555,6 +1558,44 @@ Be specific about filenames and actions. Max 8 steps.`;
       console.log(chalk.dim(`  ${available}/${statuses.length} providers available`));
       console.log(chalk.dim('  /models — see all models  |  /model <provider>:<model> — switch'));
       console.log('');
+      break;
+    }
+
+    // ── Workflow ──────────────────────────────────────────────────────────────
+    case 'workflows': {
+      const map = loadWorkflows(workflowDirs(ctx.cwd));
+      if (map.size === 0) { printInfo('No workflows found. Add YAML files to .coderaw/workflows/.'); break; }
+      printSectionHeader('🧩 Available Workflows');
+      for (const [name, def] of map) console.log(`  ${chalk.bold(name.padEnd(20))} ${chalk.dim(def.description ?? `${def.steps.length} steps`)}`);
+      break;
+    }
+    case 'workflow': {
+      const { name, inputs } = parseInputArgs(args);
+      if (!name) { printError('Usage: /workflow <name> [--input k=v ...]'); break; }
+      const def = loadWorkflows(workflowDirs(ctx.cwd)).get(name);
+      if (!def) { printError(`Workflow not found: ${name}. Try /workflows.`); break; }
+      printInfo(`Running workflow: ${name}`);
+      const run = await runWorkflow(def, inputs, buildRunnerContext(ctx));
+      for (const s of run.steps) console.log(`  ${s.ok ? chalk.green('✓') : chalk.red('✗')} ${chalk.bold(s.id)}${s.error ? chalk.red(` — ${s.error}`) : ''}`);
+      console.log(`\n${run.ok ? chalk.green('Workflow complete.') : chalk.yellow('Workflow finished with failures.')} ${chalk.dim(`(${run.usage.total_tokens} tokens)`)}`);
+      const last = run.steps[run.steps.length - 1];
+      if (last?.output) { printSectionHeader(`Output: ${last.id}`); console.log(last.output); }
+      break;
+    }
+    case 'goal': {
+      const goalText = args.join(' ').trim();
+      if (!goalText) { printError('Usage: /goal "<what you want accomplished>"'); break; }
+      const detected = (() => { try { return require('fs').existsSync(require('path').join(ctx.cwd, 'package.json')); } catch { return false; } })();
+      const allowList = ['run_command', 'read_file', 'write_file', 'edit_file', 'search_files', 'list_files'];
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+      const inq = require('inquirer') as any;
+      console.log(`\n  ${chalk.bold('Goal:')} ${goalText}`);
+      console.log(`  ${chalk.bold('Pre-authorized tools for this run:')} ${allowList.join(', ')}`);
+      console.log(`  ${chalk.bold('Verification:')} ${detected ? 'npm test (auto-detected)' : 'auto-detect / none'}`);
+      const { go } = await inq.prompt([{ type: 'confirm', name: 'go', message: 'Run this autonomous goal with the above permissions?', default: false }]);
+      if (!go) { printInfo('Cancelled.'); break; }
+      const res = await runGoal({ goal: goalText, allow: allowList }, buildRunnerContext(ctx));
+      console.log(`\n  ${res.ok ? chalk.green('✓ ' + res.summary) : chalk.yellow('• ' + res.summary)} ${chalk.dim(`(${res.usage.total_tokens} tokens, stopped: ${res.stoppedBy})`)}`);
       break;
     }
 
