@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fileChanges = void 0;
+exports.looksLikeToolAttempt = looksLikeToolAttempt;
 exports.runAgent = runAgent;
 const conversation_1 = require("./conversation");
 const tools_1 = require("./tools");
@@ -11,6 +12,17 @@ Object.defineProperty(exports, "fileChanges", { enumerable: true, get: function 
 const terminal_1 = require("../ui/terminal");
 const fallback_1 = require("../providers/fallback");
 const chalk_1 = __importDefault(require("chalk"));
+/** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
+function looksLikeToolAttempt(content) {
+    const t = (content || '').trim();
+    if (!t)
+        return false;
+    if (t.includes('<tool_call>'))
+        return true;
+    if (/"name"\s*:/.test(t) && /"(arguments|parameters)"\s*:/.test(t))
+        return true;
+    return false;
+}
 async function runAgent(providerArg, conversation, userMessage, options) {
     let provider = providerArg;
     const { cwd, stream, onToken, maxIterations = 10, mcpClient, registry, memory, skills, tokenTracker, } = options;
@@ -50,6 +62,7 @@ async function runAgent(providerArg, conversation, userMessage, options) {
     let iterations = 0;
     let lastContent = '';
     let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    let repairedOnce = false;
     const CONTEXT_CHAR_LIMITS = {
         groq: 24000,
         openrouter: 80000,
@@ -120,8 +133,17 @@ async function runAgent(providerArg, conversation, userMessage, options) {
             process.stdout.write('\n');
         }
         lastContent = result.content;
-        // ── No tool calls → done ──────────────────────────────────────────────
+        // ── No tool calls → maybe a botched call, else done ───────────────────
         if (!result.tool_calls || result.tool_calls.length === 0) {
+            if (looksLikeToolAttempt(result.content) && !repairedOnce) {
+                repairedOnce = true;
+                (0, conversation_1.addMessage)(conversation, { role: 'assistant', content: result.content });
+                (0, conversation_1.addMessage)(conversation, {
+                    role: 'user',
+                    content: 'Your previous tool call was not valid JSON. Resend ONLY the corrected tool call as a single JSON object {"name":..., "arguments":{...}} with no extra text.',
+                });
+                continue;
+            }
             (0, conversation_1.addMessage)(conversation, { role: 'assistant', content: result.content });
             break;
         }

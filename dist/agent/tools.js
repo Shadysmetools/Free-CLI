@@ -34,12 +34,23 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TOOLS = exports.fileChanges = void 0;
+exports.rgPath = rgPath;
 exports.executeTool = executeTool;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
 // Track file changes for undo
 exports.fileChanges = [];
+/** Path to the bundled ripgrep binary, or null if unavailable. */
+function rgPath() {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        return require('@vscode/ripgrep').rgPath;
+    }
+    catch {
+        return null;
+    }
+}
 exports.TOOLS = [
     {
         name: 'read_file',
@@ -363,6 +374,30 @@ function editFile(args, cwd) {
 function searchFiles(args, cwd) {
     const searchPath = args.path ? resolvePath(args.path, cwd) : cwd;
     const caseSensitive = args.case_sensitive === 'true';
+    const rg = rgPath();
+    if (rg) {
+        const parts = [
+            `"${rg}"`,
+            '--line-number', '--no-heading', '--color', 'never',
+            caseSensitive ? '--case-sensitive' : '--ignore-case',
+            '--glob', '"!node_modules"', '--glob', '"!.git"', '--glob', '"!dist"',
+            args.file_pattern ? `--glob "${args.file_pattern}"` : '',
+            '--max-count', '50',
+            `"${args.pattern.replace(/"/g, '\\"')}"`,
+            `"${searchPath}"`,
+        ].filter(Boolean);
+        try {
+            const out = child_process.execSync(parts.join(' '), { encoding: 'utf-8', timeout: 15000, maxBuffer: 1024 * 1024 * 8 });
+            return { content: out.trim() || 'No matches found' };
+        }
+        catch (err) {
+            const out = err.stdout;
+            return { content: (out && out.trim()) || 'No matches found' };
+        }
+    }
+    return searchFilesFallback(args, searchPath, caseSensitive);
+}
+function searchFilesFallback(args, searchPath, caseSensitive) {
     try {
         const isWin = process.platform === 'win32';
         let cmd;

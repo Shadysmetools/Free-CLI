@@ -27,6 +27,8 @@ export interface AgentResult {
         total_tokens: number;
     };
 }
+/** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
+export declare function looksLikeToolAttempt(content: string): boolean;
 export declare function runAgent(providerArg: Provider, conversation: ConversationState, userMessage: string, options: AgentOptions): Promise<AgentResult>;
 export { fileChanges };
 //# sourceMappingURL=core.d.ts.map

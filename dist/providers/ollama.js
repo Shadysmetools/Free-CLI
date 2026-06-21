@@ -34,6 +34,8 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OllamaProvider = void 0;
+exports.recoverToolCallsFromText = recoverToolCallsFromText;
+exports.recoverFromStreamedContent = recoverFromStreamedContent;
 const http = __importStar(require("http"));
 const https = __importStar(require("https"));
 const url_1 = require("url");
@@ -78,12 +80,12 @@ class OllamaProvider {
                 tool_call_id: m.tool_call_id,
             })),
             tools: ollamaTools,
-            stream: stream && !tools,
+            stream: stream && !!onToken,
             options: {
                 temperature: 0.3,
             },
         };
-        if (stream && !tools && onToken) {
+        if (stream && onToken) {
             return this.streamComplete(body, onToken);
         }
         const response = await this.httpPost(`${this.baseUrl}/api/chat`, body);
@@ -140,6 +142,7 @@ class OllamaProvider {
             let fullContent = '';
             let totalPromptTokens = 0;
             let totalCompletionTokens = 0;
+            let nativeToolCalls;
             const req = lib.request(options, (res) => {
                 res.on('data', (chunk) => {
                     const lines = chunk.toString().split('\n').filter(Boolean);
@@ -150,6 +153,9 @@ class OllamaProvider {
                                 fullContent += data.message.content;
                                 onToken(data.message.content);
                             }
+                            if (data.message?.tool_calls?.length) {
+                                nativeToolCalls = data.message.tool_calls;
+                            }
                             if (data.done) {
                                 totalPromptTokens = data.prompt_eval_count || 0;
                                 totalCompletionTokens = data.eval_count || 0;
@@ -159,8 +165,28 @@ class OllamaProvider {
                     }
                 });
                 res.on('end', () => {
+                    let tool_calls = nativeToolCalls?.map((tc, i) => ({
+                        id: `call_${i}`,
+                        type: 'function',
+                        function: {
+                            name: tc.function.name,
+                            arguments: typeof tc.function.arguments === 'string'
+                                ? tc.function.arguments
+                                : JSON.stringify(tc.function.arguments),
+                        },
+                    }));
+                    let content = fullContent;
+                    if (!tool_calls || tool_calls.length === 0) {
+                        const rec = recoverFromStreamedContent(fullContent);
+                        content = rec.content;
+                        tool_calls = rec.tool_calls;
+                    }
+                    else {
+                        content = '';
+                    }
                     resolve({
-                        content: fullContent,
+                        content,
+                        tool_calls,
                         usage: {
                             prompt_tokens: totalPromptTokens,
                             completion_tokens: totalCompletionTokens,
@@ -240,9 +266,7 @@ function recoverToolCallsFromText(content) {
             candidates.push(m[1].trim());
     }
     if (candidates.length === 0) {
-        const firstBrace = text.search(/[[{]/);
-        if (firstBrace >= 0)
-            candidates.push(text.slice(firstBrace));
+        candidates.push(...extractAllJsonObjects(text));
     }
     const out = [];
     for (const cand of candidates) {
@@ -256,6 +280,13 @@ function recoverToolCallsFromText(content) {
         }
     }
     return out;
+}
+/** Split accumulated streamed content into final text vs recovered tool calls. */
+function recoverFromStreamedContent(content) {
+    const recovered = recoverToolCallsFromText(content);
+    if (recovered.length > 0)
+        return { content: '', tool_calls: recovered };
+    return { content };
 }
 function parseToolObjects(text) {
     const whole = safeJsonParse(text);
@@ -311,6 +342,20 @@ function extractFirstJsonObject(text) {
         }
     }
     return null;
+}
+/** Extract every top-level balanced JSON object in order (handles multiple calls). */
+function extractAllJsonObjects(text) {
+    const out = [];
+    let rest = text;
+    for (;;) {
+        const obj = extractFirstJsonObject(rest);
+        if (!obj)
+            break;
+        out.push(obj);
+        const idx = rest.indexOf(obj);
+        rest = rest.slice(idx + obj.length);
+    }
+    return out;
 }
 /** Ollama wants tool-call arguments as an object; we store them as a JSON string. */
 function parseToolArgs(args) {
