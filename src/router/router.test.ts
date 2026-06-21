@@ -73,6 +73,10 @@ describe('classifyIntent — invocation-cue gate (real hybrid)', () => {
     expect(d.kind).toBe('workflow');
     expect(d.target).toBe('deploy-app');
   });
+  it('a bare noun cue without a verb does NOT auto-run a workflow → chat', async () => {
+    const d = await classifyIntent('my deploy-app pipeline keeps failing today', realCtx);
+    expect(d.kind).toBe('chat');
+  });
 });
 
 describe('applyRouterCommand', () => {

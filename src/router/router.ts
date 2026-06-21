@@ -23,8 +23,8 @@ const CODE_RE = /(=>|;\s*$|\{[\s\S]*\}|```|\bfunction\b|\bconst\b\s+\w+\s*=)/;
 // Invocation cues — the user must signal they want to run/use a named thing.
 // hybridSearch normalizes its top hit to 1.0, so the score alone cannot gate
 // routing; without an explicit cue, bare token overlap would hijack chat.
-// Note: "workflow"/"skill"/"pipeline" are noun cues (catch "the github skill") — looser than the verbs; the requirement that the query also share tokens with the matched item keeps precision acceptable.
-const INVOKE_RE = /\b(run|use|execute|start|launch|invoke|trigger|apply|workflow|skill|pipeline)\b/i;
+// Cues are explicit invocation VERBS only — a bare noun like "pipeline" in conversational text must NOT auto-run anything (conservative: never hijack chat).
+const INVOKE_RE = /\b(run|use|execute|start|launch|invoke|trigger|apply)\b/i;
 
 const RESEARCH_CONF = 0.75;
 const GOAL_STRONG_CONF = 0.7;
