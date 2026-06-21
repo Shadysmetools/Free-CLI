@@ -51,8 +51,13 @@ const UA = 'Mozilla/5.0 (compatible; coderaw/1.0; +https://github.com/Shadysmeto
 export async function webSearchStructured(query: string, limit = 6, deps: SearchDeps = {}): Promise<SearchResult[]> {
   const q = (query ?? '').trim();
   if (!q) return [];
-  const httpGet = deps.httpGet ?? (async (url, headers) => {
-    const r = await axios.get(url, { timeout: 12000, headers: { 'User-Agent': UA, ...(headers ?? {}) }, responseType: 'json' as const });
+  const httpGet = deps.httpGet ?? (async (url: string, headers?: Record<string, string>) => {
+    const isJson = (headers?.['Accept'] ?? '').includes('application/json');
+    const r = await axios.get(url, {
+      timeout: 12000,
+      headers: { 'User-Agent': UA, ...(headers ?? {}) },
+      responseType: isJson ? ('json' as const) : ('text' as const),
+    });
     return { data: r.data };
   });
   try {
@@ -63,7 +68,7 @@ export async function webSearchStructured(query: string, limit = 6, deps: Search
       const parsed = parseBraveJson(data, limit);
       if (parsed.length) return parsed;
     }
-    // DuckDuckGo HTML (free, real result links). responseType text — axios returns the raw HTML string.
+    // DuckDuckGo HTML (free, real result links). No Accept header → default httpGet uses responseType:'text' → axios returns the raw HTML string.
     const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
     const { data } = await httpGet(ddgUrl);
     const html = typeof data === 'string' ? data : '';

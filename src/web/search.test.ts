@@ -71,4 +71,15 @@ describe('webSearchStructured', () => {
     const out = await webSearchStructured('q', 5, { httpGet: async () => { throw new Error('net'); } });
     expect(out).toEqual([]);
   });
+
+  it('falls through to DDG when Brave returns zero results', async () => {
+    const prev = process.env.BRAVE_SEARCH_KEY;
+    process.env.BRAVE_SEARCH_KEY = 'k';
+    const httpGet = async (url: string) => url.includes('brave.com')
+      ? { data: { web: { results: [] } } }
+      : { data: '<a class="result__a" href="https://d.com/y">DDG Y</a>' };
+    const out = await webSearchStructured('q', 5, { httpGet });
+    if (prev === undefined) delete process.env.BRAVE_SEARCH_KEY; else process.env.BRAVE_SEARCH_KEY = prev;
+    expect(out).toEqual([{ title: 'DDG Y', url: 'https://d.com/y' }]);
+  });
 });
