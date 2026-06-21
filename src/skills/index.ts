@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as YAML from 'yaml';
+import { hybridSearch } from '../match/hybrid';
 
 export type SkillSource = 'builtin' | 'project' | 'user';
 
@@ -174,6 +175,40 @@ export class SkillsManager {
     const relevant = this.detectRelevant(userMessage);
     if (relevant.length === 0) return '';
 
+    let context = '\n\n## Active Skills\n';
+    for (const skill of relevant) {
+      context += `\n### ${skill.name}\n${skill.body}\n`;
+    }
+    return context;
+  }
+
+  /** Matcher-based relevance (BM25-only, top-1). Async; never throws — keyword fallback on error. */
+  async detectRelevantHybrid(
+    userMessage: string,
+    deps: { hybrid?: typeof hybridSearch } = {},
+  ): Promise<Skill[]> {
+    try {
+      const hybrid = deps.hybrid ?? hybridSearch;
+      const enabled = this.list().filter(s => s.enabled);
+      if (enabled.length === 0) return [];
+      const docs = enabled.map(s => ({ id: s.name, text: `${s.name} ${s.description}` }));
+      const hits = await hybrid(userMessage, docs, { topK: 1 });
+      const top = hits[0];
+      if (!top) return [];
+      const skill = this.skills.get(top.id);
+      return skill ? [skill] : [];
+    } catch {
+      return this.detectRelevant(userMessage).slice(0, 1); // keyword fallback, top-1
+    }
+  }
+
+  /** Async skill context (top-1 body) for system-prompt injection. '' when nothing relevant. */
+  async getSkillContextAsync(
+    userMessage: string,
+    deps: { hybrid?: typeof hybridSearch } = {},
+  ): Promise<string> {
+    const relevant = await this.detectRelevantHybrid(userMessage, deps);
+    if (relevant.length === 0) return '';
     let context = '\n\n## Active Skills\n';
     for (const skill of relevant) {
       context += `\n### ${skill.name}\n${skill.body}\n`;
