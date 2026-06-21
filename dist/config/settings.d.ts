@@ -51,6 +51,10 @@ export interface Settings {
             budgetUsd?: number;
         };
     };
+    research?: {
+        maxQueries?: number;
+        maxSources?: number;
+    };
 }
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */
 export declare function getDefaultSettings(): Settings;

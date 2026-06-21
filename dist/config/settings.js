@@ -95,6 +95,7 @@ const DEFAULT_SETTINGS = {
         concurrency: { ollama: 1, default: 4 },
         goal: { maxRounds: 5 },
     },
+    research: { maxQueries: 5, maxSources: 8 },
 };
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */
 function getDefaultSettings() {

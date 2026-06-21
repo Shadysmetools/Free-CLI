@@ -18,20 +18,28 @@ exports.executeWebSearch = executeWebSearch;
 exports.executeWebFetch = executeWebFetch;
 exports.executeApiCall = executeApiCall;
 const axios_1 = __importDefault(require("axios"));
+const search_1 = require("../web/search");
 // ─── web_search ────────────────────────────────────────────────────────────────
 /**
  * Search the web using DuckDuckGo Instant Answer API (free, no key needed).
  * Falls back to Brave Search API if BRAVE_SEARCH_KEY is set.
  */
 async function executeWebSearch(query) {
-    if (!query?.trim()) {
+    if (!query?.trim())
         return { content: 'Error: query is required', isError: true };
+    const results = await (0, search_1.webSearchStructured)(query, 5);
+    if (results.length === 0) {
+        return { content: `🔍 Web Search: "${query}"\n\nNo results found. Try: https://duckduckgo.com/?q=${encodeURIComponent(query)}` };
     }
-    const braveKey = process.env.BRAVE_SEARCH_KEY;
-    if (braveKey) {
-        return searchWithBrave(query, braveKey);
+    const parts = [`🔍 Web Search: "${query}"\n`];
+    for (const r of results) {
+        parts.push(`📄 **${r.title}**`);
+        if (r.snippet)
+            parts.push(`   ${r.snippet}`);
+        parts.push(`   🔗 ${r.url}`);
+        parts.push('');
     }
-    return searchWithDuckDuckGo(query);
+    return { content: parts.join('\n') };
 }
 async function searchWithDuckDuckGo(query) {
     try {

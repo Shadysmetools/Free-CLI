@@ -179,6 +179,7 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/workflows')}           List available workflow definitions
   ${c.green('/workflow')} <name>     Run a named workflow (--input k=v)
   ${c.green('/goal')} "<text>"       Run an autonomous goal with pre-auth tools
+  ${c.green('/research')} "<question>"  Deep research: web search → fetch → cited report
 
   ${c.bold.dim('── Other ─────────────────────────────────────')}
   ${c.green('/plan')} <task>         Generate execution plan

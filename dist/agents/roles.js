@@ -196,6 +196,20 @@ Rules:
 
 Prefer to run an objective command (tests, build, type-check) and judge by its exit status. Only fall back to reading the code and giving an opinion when no such command exists. Never claim success without concrete evidence. Answer with a clear PASS or FAIL and one sentence of justification, citing the evidence you used.`,
     },
+    researcher: {
+        id: 'researcher',
+        name: 'Researcher',
+        icon: '🔬',
+        description: 'Decompose a question and synthesize cited findings from sources',
+        allowedTools: ['web_search', 'web_fetch', 'read_file'],
+        systemPrompt: `You are a research specialist. You break a question into focused search queries, then synthesize findings from fetched sources into a clear, accurate report.
+
+Rules:
+- When asked to decompose, output ONLY a JSON array of 3-5 concise, specific search-query strings — no prose.
+- When asked to synthesize, write a structured markdown report. CITE every load-bearing claim with the source URL it came from, inline like (source: <url>).
+- Use ONLY the provided source material; do not invent facts. If the sources do not answer part of the question, say so explicitly and flag the gap.
+- Be concise and well-organized (short sections, bullets where useful).`,
+    },
 };
 function getRole(id) {
     return exports.BUILTIN_ROLES[id];

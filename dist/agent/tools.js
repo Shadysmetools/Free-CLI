@@ -41,6 +41,7 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
 const plan_1 = require("./plan");
+const web_tools_1 = require("../bot/web_tools");
 // Track file changes for undo
 exports.fileChanges = [];
 /** Path to the bundled ripgrep binary, or null if unavailable. */
@@ -314,6 +315,16 @@ exports.TOOLS = [
             required: ['items'],
         },
     },
+    {
+        name: 'web_search',
+        description: 'Search the web for current information, docs, or any topic. Returns titles, snippets, and URLs.',
+        parameters: { type: 'object', properties: { query: { type: 'string', description: 'The search query. Be specific.' } }, required: ['query'] },
+    },
+    {
+        name: 'web_fetch',
+        description: 'Fetch a URL and return its readable text (HTML stripped). Use to read docs, articles, or pages.',
+        parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full http(s) URL' }, max_chars: { type: 'number', description: 'Max chars to return (default 8000)' } }, required: ['url'] },
+    },
 ];
 async function executeTool(name, args, cwd) {
     try {
@@ -339,6 +350,8 @@ async function executeTool(name, args, cwd) {
                 const { executeWorkflowTool } = require('../workflow/tools');
                 return executeWorkflowTool(name, args, cwd);
             }
+            case 'web_search': return (0, web_tools_1.executeWebSearch)(String(args.query ?? ''));
+            case 'web_fetch': return (0, web_tools_1.executeWebFetch)(String(args.url ?? ''), typeof args.max_chars === 'number' ? args.max_chars : 8000);
             default: return { content: `Unknown tool: ${name}`, isError: true };
         }
     }

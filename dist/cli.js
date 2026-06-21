@@ -82,6 +82,7 @@ const roles_1 = require("./agents/roles");
 const index_7 = require("./diagrams/index");
 const index_8 = require("./persona/index");
 const index_9 = require("./workflow/index");
+const index_10 = require("./research/index");
 async function startCLI(opts = {}) {
     // ── First-run onboarding ───────────────────────────────────────────────────
     // Run the friendly setup wizard ONLY on a genuine first run (no config.yaml
@@ -1673,6 +1674,27 @@ Be specific about filenames and actions. Max 8 steps.`;
             }
             const res = await (0, index_9.runGoal)({ goal: goalText, allow: allowList }, (0, index_9.buildRunnerContext)(ctx));
             console.log(`\n  ${res.ok ? chalk_1.default.green('✓ ' + res.summary) : chalk_1.default.yellow('• ' + res.summary)} ${chalk_1.default.dim(`(${res.usage.total_tokens} tokens, stopped: ${res.stoppedBy})`)}`);
+            break;
+        }
+        // ── Research ──────────────────────────────────────────────────────────────
+        case 'research': {
+            const question = args.join(' ').replace(/^["']|["']$/g, '').trim();
+            if (!question) {
+                (0, terminal_1.printError)('Usage: /research "<question>"');
+                break;
+            }
+            (0, terminal_1.printInfo)(`Researching: ${question}`);
+            const res = await (0, index_10.runResearch)({ question }, (0, index_9.buildRunnerContext)(ctx));
+            if (res.stoppedBy === 'no_sources' || res.stoppedBy === 'error') {
+                (0, terminal_1.printError)(res.report);
+                break;
+            }
+            (0, terminal_1.printSectionHeader)(`🔬 Research: ${question}`);
+            console.log(res.report);
+            const file = path.join(ctx.cwd, `research-${(0, index_10.slugify)(question)}.md`);
+            const header = `# Research: ${question}\n\n_Queries: ${res.queries.join('; ')}_\n_Sources:_\n${res.sources.map(s => `- [${s.title}](${s.url})`).join('\n')}\n\n---\n\n`;
+            fs.writeFileSync(file, header + res.report, 'utf-8');
+            (0, terminal_1.printInfo)(`Saved → ${file}  (${res.usage.total_tokens} tokens, ${res.sources.length} sources)`);
             break;
         }
         default:

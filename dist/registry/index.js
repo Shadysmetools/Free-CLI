@@ -12,6 +12,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ToolRegistry = void 0;
 exports.createDefaultRegistry = createDefaultRegistry;
+const tools_1 = require("../agent/tools");
 // ─── ToolRegistry ─────────────────────────────────────────────────────────────
 class ToolRegistry {
     constructor() {
@@ -92,7 +93,7 @@ class ToolRegistry {
             list.push(tool);
             byCategory.set(tool.category, list);
         }
-        const categoryOrder = ['file', 'shell', 'git', 'memory', 'document', 'visual', 'whisper', 'mcp', 'custom'];
+        const categoryOrder = ['file', 'shell', 'git', 'memory', 'document', 'visual', 'web', 'whisper', 'mcp', 'custom'];
         const lines = [''];
         for (const cat of categoryOrder) {
             const tools = byCategory.get(cat);
@@ -141,6 +142,7 @@ function categoryLabel(cat) {
         memory: '🧠 Memory Tools',
         document: '📑 Document Tools',
         visual: '🎨 Visual / Diagram Tools',
+        web: '🌐 Web Tools',
         whisper: '🎤 Whisper Tools',
         mcp: '🔌 MCP Tools',
         custom: '🔧 Custom Tools',
@@ -178,6 +180,12 @@ function createDefaultRegistry() {
         if (tool)
             registry.register(tool, 'visual');
     }
+    // Web tools
+    for (const name of ['web_search', 'web_fetch']) {
+        const tool = getBuiltinTool(name);
+        if (tool)
+            registry.register(tool, 'web');
+    }
     // Memory tools (definitions only — execution handled by memory system)
     registry.register({
         name: 'memory_search',
@@ -204,8 +212,14 @@ function createDefaultRegistry() {
     }, 'memory');
     return registry;
 }
-/** Lazy-import TOOLS to avoid circular deps */
+/** Look up a builtin tool by name. Uses the static import first (works in ESM/vitest),
+ *  falls back to require() for any legacy CJS callers. */
 function getBuiltinTool(name) {
+    // Primary: use the statically-imported TOOLS array (always available)
+    const fromStatic = tools_1.TOOLS.find((t) => t.name === name);
+    if (fromStatic)
+        return fromStatic;
+    // Fallback: CJS require (for runtime contexts where the static import may differ)
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { TOOLS } = require('../agent/tools');
