@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pLimit, parallel } from './primitives';
+import { pLimit, parallel, pipeline } from './primitives';
 
 const defer = (ms: number, v: unknown) => new Promise(r => setTimeout(() => r(v), ms));
 
@@ -28,5 +28,31 @@ describe('parallel', () => {
     const out = await parallel([make(1), make(2), make(3)]);
     expect(peak).toBe(1);
     expect(out).toEqual([1, 2, 3]);
+  });
+});
+
+describe('pipeline', () => {
+  it('flows each item through all stages independently', async () => {
+    const out = await pipeline(
+      [1, 2, 3],
+      async (_prev, item) => item * 10,
+      async (prev) => prev + 1,
+    );
+    expect(out).toEqual([11, 21, 31]);
+  });
+  it('passes prev / item / index to each stage', async () => {
+    const seen: Array<[unknown, unknown, number]> = [];
+    await pipeline(['x'], async (prev, item, i) => { seen.push([prev, item, i]); return 'y'; });
+    expect(seen).toEqual([[undefined, 'x', 0]]);
+  });
+  it('drops an item to null when a stage throws and skips its later stages', async () => {
+    let stage2Calls = 0;
+    const out = await pipeline(
+      [1, 2],
+      async (_p, item) => { if (item === 2) throw new Error('bad'); return item; },
+      async (prev) => { stage2Calls++; return prev + 100; },
+    );
+    expect(out).toEqual([101, null]);
+    expect(stage2Calls).toBe(1);
   });
 });

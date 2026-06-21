@@ -35,3 +35,23 @@ export async function parallel<T>(
     })),
   );
 }
+
+/**
+ * Run each item through every stage independently (no barrier between stages):
+ * item A may reach stage 3 while item B is still in stage 1. A stage that throws
+ * drops that item to null and skips its remaining stages.
+ */
+export async function pipeline<T>(
+  items: T[],
+  ...stages: Array<(prev: any, item: T, index: number) => Promise<any>> // eslint-disable-line @typescript-eslint/no-explicit-any
+): Promise<Array<any | null>> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return Promise.all(items.map(async (item, index) => {
+    let acc: unknown = undefined;
+    try {
+      for (const stage of stages) acc = await stage(acc, item, index);
+      return acc;
+    } catch {
+      return null;
+    }
+  }));
+}
