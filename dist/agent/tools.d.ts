@@ -13,4 +13,15 @@ export declare const fileChanges: FileChange[];
 export declare function rgPath(): string | null;
 export declare const TOOLS: Tool[];
 export declare function executeTool(name: string, args: Record<string, unknown>, cwd: string): Promise<ToolResult>;
+/**
+ * Pure edit helper. Refuses ambiguous edits (old_text matching 0 or >1 places)
+ * instead of silently replacing the first match and corrupting the file.
+ */
+export declare function applyEdit(content: string, oldText: string, newText: string): {
+    ok: true;
+    content: string;
+} | {
+    ok: false;
+    error: string;
+};
 //# sourceMappingURL=tools.d.ts.map

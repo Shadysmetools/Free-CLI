@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TOOLS = exports.fileChanges = void 0;
 exports.rgPath = rgPath;
 exports.executeTool = executeTool;
+exports.applyEdit = applyEdit;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
@@ -357,18 +358,38 @@ function writeFile(args, cwd) {
     const lines = args.content.split('\n').length;
     return { content: `✓ ${existed ? 'Updated' : 'Created'} ${args.path} (${lines} lines)` };
 }
+/**
+ * Pure edit helper. Refuses ambiguous edits (old_text matching 0 or >1 places)
+ * instead of silently replacing the first match and corrupting the file.
+ */
+function applyEdit(content, oldText, newText) {
+    if (oldText.length === 0) {
+        return { ok: false, error: 'old_text is empty; provide the exact text to replace.' };
+    }
+    const occurrences = content.split(oldText).length - 1;
+    if (occurrences === 0) {
+        return { ok: false, error: 'Could not find the specified text.' };
+    }
+    if (occurrences > 1) {
+        return {
+            ok: false,
+            error: `Found ${occurrences} occurrences of that text; the edit is ambiguous. Provide a larger, unique old_text snippet (include surrounding lines).`,
+        };
+    }
+    return { ok: true, content: content.replace(oldText, newText) };
+}
 function editFile(args, cwd) {
     const fullPath = resolvePath(args.path, cwd);
     if (!fs.existsSync(fullPath)) {
         return { content: `File not found: ${args.path}`, isError: true };
     }
     const content = fs.readFileSync(fullPath, 'utf-8');
-    if (!content.includes(args.old_text)) {
-        return { content: `Could not find the specified text in ${args.path}. Text to find:\n${args.old_text}`, isError: true };
+    const result = applyEdit(content, args.old_text, args.new_text);
+    if (!result.ok) {
+        return { content: `${result.error} (in ${args.path})`, isError: true };
     }
     exports.fileChanges.push({ path: fullPath, originalContent: content, action: 'edit' });
-    const newContent = content.replace(args.old_text, args.new_text);
-    fs.writeFileSync(fullPath, newContent, 'utf-8');
+    fs.writeFileSync(fullPath, result.content, 'utf-8');
     return { content: `✓ Edited ${args.path}` };
 }
 function searchFiles(args, cwd) {
@@ -505,16 +526,18 @@ function gitLog(args, cwd) {
 }
 function gitCommit(args, cwd) {
     try {
-        const files = args.files || '.';
-        child_process.execSync(`git add ${files}`, { cwd, encoding: 'utf-8' });
-        const result = child_process.execSync(`git commit -m "${args.message.replace(/"/g, '\\"')}"`, {
+        // execFileSync with an argv array bypasses the shell — no quote-escaping bugs
+        // and no injection via the commit message or file names.
+        const files = args.files && args.files.trim() ? args.files.trim().split(/\s+/) : ['.'];
+        child_process.execFileSync('git', ['add', ...files], { cwd, encoding: 'utf-8' });
+        const result = child_process.execFileSync('git', ['commit', '-m', args.message], {
             cwd, encoding: 'utf-8', timeout: 10000,
         });
         return { content: result };
     }
     catch (err) {
         const error = err;
-        return { content: error.stderr || error.message || 'Commit failed', isError: true };
+        return { content: error.stderr || error.stdout || error.message || 'Commit failed', isError: true };
     }
 }
 // ─── PDF Generation ───────────────────────────────────────────────────────────

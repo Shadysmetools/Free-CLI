@@ -345,18 +345,43 @@ function writeFile(args: { path: string; content: string }, cwd: string): ToolRe
   return { content: `✓ ${existed ? 'Updated' : 'Created'} ${args.path} (${lines} lines)` };
 }
 
+/**
+ * Pure edit helper. Refuses ambiguous edits (old_text matching 0 or >1 places)
+ * instead of silently replacing the first match and corrupting the file.
+ */
+export function applyEdit(
+  content: string,
+  oldText: string,
+  newText: string,
+): { ok: true; content: string } | { ok: false; error: string } {
+  if (oldText.length === 0) {
+    return { ok: false, error: 'old_text is empty; provide the exact text to replace.' };
+  }
+  const occurrences = content.split(oldText).length - 1;
+  if (occurrences === 0) {
+    return { ok: false, error: 'Could not find the specified text.' };
+  }
+  if (occurrences > 1) {
+    return {
+      ok: false,
+      error: `Found ${occurrences} occurrences of that text; the edit is ambiguous. Provide a larger, unique old_text snippet (include surrounding lines).`,
+    };
+  }
+  return { ok: true, content: content.replace(oldText, newText) };
+}
+
 function editFile(args: { path: string; old_text: string; new_text: string }, cwd: string): ToolResult {
   const fullPath = resolvePath(args.path, cwd);
   if (!fs.existsSync(fullPath)) {
     return { content: `File not found: ${args.path}`, isError: true };
   }
   const content = fs.readFileSync(fullPath, 'utf-8');
-  if (!content.includes(args.old_text)) {
-    return { content: `Could not find the specified text in ${args.path}. Text to find:\n${args.old_text}`, isError: true };
+  const result = applyEdit(content, args.old_text, args.new_text);
+  if (!result.ok) {
+    return { content: `${result.error} (in ${args.path})`, isError: true };
   }
   fileChanges.push({ path: fullPath, originalContent: content, action: 'edit' });
-  const newContent = content.replace(args.old_text, args.new_text);
-  fs.writeFileSync(fullPath, newContent, 'utf-8');
+  fs.writeFileSync(fullPath, result.content, 'utf-8');
   return { content: `✓ Edited ${args.path}` };
 }
 
@@ -494,15 +519,17 @@ function gitLog(args: { limit?: number; file?: string }, cwd: string): ToolResul
 
 function gitCommit(args: { message: string; files?: string }, cwd: string): ToolResult {
   try {
-    const files = args.files || '.';
-    child_process.execSync(`git add ${files}`, { cwd, encoding: 'utf-8' });
-    const result = child_process.execSync(`git commit -m "${args.message.replace(/"/g, '\\"')}"`, {
+    // execFileSync with an argv array bypasses the shell — no quote-escaping bugs
+    // and no injection via the commit message or file names.
+    const files = args.files && args.files.trim() ? args.files.trim().split(/\s+/) : ['.'];
+    child_process.execFileSync('git', ['add', ...files], { cwd, encoding: 'utf-8' });
+    const result = child_process.execFileSync('git', ['commit', '-m', args.message], {
       cwd, encoding: 'utf-8', timeout: 10000,
     });
     return { content: result };
   } catch (err) {
-    const error = err as { stderr?: string; message?: string };
-    return { content: error.stderr || error.message || 'Commit failed', isError: true };
+    const error = err as { stdout?: string; stderr?: string; message?: string };
+    return { content: error.stderr || error.stdout || error.message || 'Commit failed', isError: true };
   }
 }
 
