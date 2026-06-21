@@ -9,6 +9,7 @@ import { TokenTracker } from '../tracking/tokens';
 import { printToolCall, printToolResult, printError, printWarning } from '../ui/terminal';
 import { completeWithFallback } from '../providers/fallback';
 import { gate, GateContext, Rules, persistAllowPattern } from '../permissions';
+import { StreamFilter } from './stream-filter';
 import chalk from 'chalk';
 
 export interface AgentOptions {
@@ -195,8 +196,13 @@ export async function runAgent(
 
   while (iterations < maxIterations) {
     iterations++;
-    const doStream = stream && iterations === 1;
+    // Stream on EVERY iteration (#7) so the final answer AFTER tool calls also
+    // streams — not just iteration 1. A per-iteration StreamFilter suppresses
+    // raw tool-call JSON that local models emit as text, so the user never sees
+    // it mid-stream.
+    const doStream = stream;
     let tokensStreamed = false;
+    const streamFilter = new StreamFilter();
 
     trimConversation(5);
 
@@ -209,9 +215,12 @@ export async function runAgent(
           tools: allTools,
           stream: doStream,
           onToken: doStream ? (token) => {
-            tokensStreamed = true;
-            process.stdout.write(chalk.white(token));
-            if (onToken) onToken(token);
+            const visible = streamFilter.push(token);
+            if (visible) {
+              tokensStreamed = true;
+              process.stdout.write(chalk.white(visible));
+              if (onToken) onToken(visible);
+            }
           } : undefined,
         },
         (modelName) => {
@@ -227,6 +236,17 @@ export async function runAgent(
       const msg = (err as Error).message;
       printError(`Provider error: ${msg}`);
       return { content: `Error: ${msg}` };
+    }
+
+    // Flush any visible content the filter buffered while still deciding
+    // prose-vs-tool (e.g. short prose that never hit a flush boundary).
+    if (doStream) {
+      const tail = streamFilter.flush();
+      if (tail) {
+        tokensStreamed = true;
+        process.stdout.write(chalk.white(tail));
+        if (onToken) onToken(tail);
+      }
     }
 
     if (result.usage) {
