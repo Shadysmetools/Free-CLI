@@ -36,12 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TOOLS = exports.fileChanges = void 0;
 exports.rgPath = rgPath;
 exports.executeTool = executeTool;
+exports.loadSkill = loadSkill;
 exports.applyEdit = applyEdit;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
 const plan_1 = require("./plan");
 const web_tools_1 = require("../bot/web_tools");
+const runtime_1 = require("../skills/runtime");
 // Track file changes for undo
 exports.fileChanges = [];
 /** Path to the bundled ripgrep binary, or null if unavailable. */
@@ -316,6 +318,15 @@ exports.TOOLS = [
         },
     },
     {
+        name: 'skill',
+        description: "Load the full instructions for a named skill from the Available Skills list. Call this when a listed skill is relevant before starting the task.",
+        parameters: {
+            type: 'object',
+            properties: { name: { type: 'string', description: 'The skill name from the Available Skills list' } },
+            required: ['name'],
+        },
+    },
+    {
         name: 'web_search',
         description: 'Search the web for current information, docs, or any topic. Returns titles, snippets, and URLs.',
         parameters: { type: 'object', properties: { query: { type: 'string', description: 'The search query. Be specific.' } }, required: ['query'] },
@@ -344,6 +355,7 @@ async function executeTool(name, args, cwd) {
             case 'generate_diagram': return generateDiagram(args, cwd);
             case 'generate_image': return generateImage(args, cwd);
             case 'update_plan': return updatePlan(args);
+            case 'skill': return loadSkill(args);
             case 'spawn_agent':
             case 'run_parallel': {
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -363,6 +375,17 @@ function resolvePath(filePath, cwd) {
     if (path.isAbsolute(filePath))
         return filePath;
     return path.resolve(cwd, filePath);
+}
+/** Load a skill's full body on demand. Reaches the SkillsManager via the runtime holder. */
+function loadSkill(args) {
+    const mgr = (0, runtime_1.getSkillsRuntime)();
+    if (!mgr)
+        return { content: 'Skills are not available in this context.', isError: true };
+    const name = String(args.name ?? '');
+    const s = mgr.activate(name);
+    if (!s)
+        return { content: `Unknown skill "${name}". Available: ${mgr.list().map(x => x.name).join(', ')}`, isError: true };
+    return { content: s.body };
 }
 // ─── Plan / TODO ────────────────────────────────────────────────────────────────
 /**
