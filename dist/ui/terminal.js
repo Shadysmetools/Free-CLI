@@ -156,6 +156,11 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/skills info')} <name>  Show skill details
   ${c.green('/skills add')} <name>   Create a new custom skill
 
+  ${c.bold.dim('── Permissions ──────────────────────────────')}
+  ${c.green('/permissions')}          Show permission rules (allow/ask/deny)
+  ${c.green('/permissions allow')} <p>  Allow a command/path pattern (persists)
+  ${c.green('/permissions deny')} <p>   Block a pattern this session
+
   ${c.bold.dim('── Tokens & Cost ────────────────────────────')}
   ${c.green('/cost')}                Session token usage + cost breakdown
   ${c.green('/tokens')}              Compact token summary

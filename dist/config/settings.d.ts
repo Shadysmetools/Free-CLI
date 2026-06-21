@@ -30,6 +30,15 @@ export interface Settings {
     };
     openclaw?: OpenClawConfig;
     budget?: number;
+    permissions?: {
+        enabled?: boolean;
+        projectRoot?: string;
+        allow?: string[];
+        ask?: string[];
+        deny?: string[];
+        unattended?: 'deny' | 'allow';
+        confirmDefault?: 'approve' | 'skip';
+    };
 }
 export declare function loadSettings(): Settings;
 export declare function saveSettings(settings: Settings): void;

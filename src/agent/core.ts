@@ -228,7 +228,8 @@ export async function runAgent(
         const decision = await gate(toolName, toolArgs, gateCtx);
         if (!decision.allowed) {
           printToolCall(toolName, toolArgs);
-          printToolResult(toolName, `⛔ ${decision.reasonForModel ?? 'Not permitted.'}`);
+          // Always-visible denial (printToolResult hides content in non-verbose mode)
+          process.stdout.write(`\n  ${chalk.yellow(`⛔ ${decision.reasonForModel ?? 'Not permitted.'}`)}\n`);
           addMessage(conversation, {
             role: 'tool',
             content: decision.reasonForModel ?? 'Action not permitted by user permission rules.',

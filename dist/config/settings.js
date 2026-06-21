@@ -78,6 +78,15 @@ const DEFAULT_SETTINGS = {
     whisper: {
         model: 'base',
     },
+    permissions: {
+        enabled: true,
+        projectRoot: 'auto',
+        allow: [],
+        ask: [],
+        deny: [],
+        unattended: 'deny',
+        confirmDefault: 'approve',
+    },
 };
 function loadSettings() {
     // Start with defaults
