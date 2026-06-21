@@ -11,6 +11,7 @@ import { checkAllProviders } from './providers/fallback';
 import { createConversation, compactConversation, clearConversation, getConversationStats, buildSystemPrompt } from './agent/conversation';
 import { runAgent } from './agent/core';
 import { fileChanges } from './agent/tools';
+import { loadPermissionRules, persistAllowPattern, Rules } from './permissions';
 import { setupMCPClient } from './mcp/config';
 import { transcribeFile, transcribeViaGroq, getWhisperInstallInstructions } from './whisper/transcribe';
 import { printBanner, printHelp, printError, printSuccess, printInfo, printWarning, printSectionHeader, printBox, createSpinner, printPlanBox, PlanStep } from './ui/terminal';
@@ -52,6 +53,10 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
   const settings = loadSettings();
   const cwd = opts.cwd || process.cwd();
   const projectConfig = loadProjectConfig(cwd);
+
+  // ── Permission rules (loaded once; session allowlist shared across turns) ──
+  const permissionRules = loadPermissionRules(cwd, settings.permissions);
+  const sessionAllow = new Set<string>();
 
   // ── Provider setup ────────────────────────────────────────────────────────
   let providerName = opts.provider || settings.defaultProvider;
@@ -168,6 +173,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
     let streamedContent = '';
     const result = await runAgent(provider, conversation, opts.oneShot, {
       cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
+      permissions: permissionRules, sessionAllow,
       onToken: (tok: string) => { streamedContent += tok; },
     });
     if (result.content && !streamedContent && result.content.trim()) {
@@ -196,7 +202,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
     settings, conversation, provider, providerName, cwd, mcpClient,
     rl: fakeRl,
     memory, skills, tokenTracker, registry, openclawClient,
-    history, profile, persona,
+    history, profile, persona, permissionRules, sessionAllow,
     onProviderChange: (newProvider: ReturnType<typeof createProvider>, newName: string) => {
       provider = newProvider;
       providerName = newName;
@@ -261,6 +267,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
       let streamedContent = '';
       const agentResult = await runAgent(provider, conversation, input, {
         cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
+        permissions: permissionRules, sessionAllow,
         onToken: (token: string) => { streamedContent += token; },
       });
 
@@ -299,6 +306,8 @@ interface SlashCommandContext {
   history: HistoryManager;
   profile: ProfileManager;
   persona: PersonaManager;
+  permissionRules: Rules;
+  sessionAllow: Set<string>;
   onProviderChange: (provider: ReturnType<typeof createProvider>, name: string) => void;
   onConversationReset: (conv: ReturnType<typeof createConversation>) => void;
   onSystemUpdate: () => void;
@@ -426,6 +435,47 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
         printInfo('Edit the SKILL.md file to add your skill instructions.');
       } else {
         printError(`Unknown /skills subcommand: ${sub}. Try: /skills, /skills info <name>, /skills add <name>`);
+      }
+      break;
+    }
+
+    // ── Permissions ─────────────────────────────────────────────────────────────
+    case 'permissions':
+    case 'perms': {
+      const r = ctx.permissionRules;
+      const sub = args[0]?.toLowerCase();
+      if (!sub) {
+        printSectionHeader('🔐 Permissions');
+        console.log(`  enabled: ${r.enabled ? chalk.green('yes') : chalk.red('no')}`);
+        console.log(`  project root: ${chalk.magenta(r.projectRoot)}`);
+        console.log(`  unattended: ${r.unattended} · Enter-default: ${r.confirmDefault}`);
+        console.log(`  ${chalk.green('allow')} (${r.allow.length}): ${r.allow.join(', ') || chalk.dim('(none)')}`);
+        console.log(`  ${chalk.yellow('ask')}   (${r.ask.length}): ${r.ask.join(', ') || chalk.dim('(none)')}`);
+        console.log(`  ${chalk.red('deny')}  (${r.deny.length}): ${r.deny.join(', ') || chalk.dim('(none)')}`);
+        console.log(`\n  ${chalk.dim('Usage: /permissions allow <pattern> | deny <pattern> | ask <pattern> | reload')}`);
+        break;
+      }
+      const pattern = args.slice(1).join(' ').trim();
+      if (!pattern && sub !== 'reload') { printError(`Usage: /permissions ${sub} <pattern>`); break; }
+      if (sub === 'allow') {
+        if (!r.allow.includes(pattern)) r.allow.push(pattern);
+        persistAllowPattern(pattern);
+        printSuccess(`Allowed (and saved): ${pattern}`);
+      } else if (sub === 'deny') {
+        if (!r.deny.includes(pattern)) r.deny.push(pattern);
+        printSuccess(`Denied this session: ${pattern}`);
+        printInfo('To persist, add it to permissions.deny in your config.yaml.');
+      } else if (sub === 'ask') {
+        if (!r.ask.includes(pattern)) r.ask.push(pattern);
+        printSuccess(`Will ask for: ${pattern}`);
+      } else if (sub === 'reload') {
+        const fresh = loadPermissionRules(ctx.cwd, ctx.settings.permissions);
+        r.enabled = fresh.enabled; r.projectRoot = fresh.projectRoot;
+        r.allow = fresh.allow; r.ask = fresh.ask; r.deny = fresh.deny;
+        r.unattended = fresh.unattended; r.confirmDefault = fresh.confirmDefault;
+        printSuccess('Permission rules reloaded from config.');
+      } else {
+        printError(`Unknown /permissions subcommand: ${sub}`);
       }
       break;
     }

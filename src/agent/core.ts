@@ -8,6 +8,7 @@ import { SkillsManager } from '../skills/index';
 import { TokenTracker } from '../tracking/tokens';
 import { printToolCall, printToolResult, printError, printWarning } from '../ui/terminal';
 import { completeWithFallback } from '../providers/fallback';
+import { gate, GateContext, Rules, persistAllowPattern } from '../permissions';
 import chalk from 'chalk';
 
 export interface AgentOptions {
@@ -20,6 +21,9 @@ export interface AgentOptions {
   memory?: MemoryManager;
   skills?: SkillsManager;
   tokenTracker?: TokenTracker;
+  permissions?: Rules;
+  unattended?: boolean;
+  sessionAllow?: Set<string>;
 }
 
 export interface AgentResult {
@@ -52,9 +56,21 @@ export async function runAgent(
   const {
     cwd, stream, onToken, maxIterations = 10,
     mcpClient, registry, memory, skills, tokenTracker,
+    permissions, unattended, sessionAllow,
   } = options;
 
   const turnStart = Date.now();
+
+  // ── Permission gate context (built once per turn) ─────────────────────────
+  const gateCtx: GateContext | undefined = permissions
+    ? {
+        cwd,
+        rules: permissions,
+        isInteractive: Boolean(process.stdout.isTTY) && !unattended,
+        sessionAllow: sessionAllow ?? new Set<string>(),
+        persistAllow: persistAllowPattern,
+      }
+    : undefined;
 
   // ── Skill injection ───────────────────────────────────────────────────────
   if (skills) {
@@ -206,6 +222,22 @@ export async function runAgent(
       try {
         toolArgs = JSON.parse(toolCall.function.arguments);
       } catch { /* ignore */ }
+
+      // ── Permission gate ───────────────────────────────────────────────────
+      if (gateCtx) {
+        const decision = await gate(toolName, toolArgs, gateCtx);
+        if (!decision.allowed) {
+          printToolCall(toolName, toolArgs);
+          printToolResult(toolName, `⛔ ${decision.reasonForModel ?? 'Not permitted.'}`);
+          addMessage(conversation, {
+            role: 'tool',
+            content: decision.reasonForModel ?? 'Action not permitted by user permission rules.',
+            tool_call_id: toolCall.id,
+            name: toolName,
+          });
+          continue;
+        }
+      }
 
       printToolCall(toolName, toolArgs);
 
