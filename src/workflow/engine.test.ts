@@ -55,4 +55,18 @@ describe('runWorkflow', () => {
     expect(run.steps.find(s => s.id === 'b')!.ok).toBe(true);
     expect(run.steps.find(s => s.id === 'c')!.ok).toBe(false); // skipped because dep a failed
   });
+
+  it('runs a pipeline step, feeding {{prev}} from one stage to the next', async () => {
+    const run = async (spec: SubAgentSpec): Promise<SubAgentResult> => ({ ok: true, content: `<${spec.task}>`, task: spec.task });
+    const def = { name: 'w', steps: [
+      { id: 'p', type: 'pipeline' as const, stages: [
+        { role: 'coder', task: 'start' },
+        { role: 'coder', task: 'next:{{prev}}' },
+      ]},
+    ]};
+    const r = await runWorkflow(def, {}, ctx(), { runSubAgent: run });
+    expect(r.ok).toBe(true);
+    // stage1 → "<start>"; stage2 task becomes "next:<start>" → "<next:<start>>"
+    expect(r.outputs.p).toBe('<next:<start>>');
+  });
 });

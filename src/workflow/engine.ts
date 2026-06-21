@@ -83,7 +83,8 @@ export async function runWorkflow(
         const stages = step.stages ?? [];
         const out = await pipeline([0],
           ...stages.map((stg) => async (prev: unknown) => {
-            const task = substitute(stg.task, inputs, { ...outputs, __prev: String(prev ?? '') }).replace(/\{\{\s*prev\s*\}\}/g, String(prev ?? ''));
+            const resolved = stg.task.replace(/\{\{\s*prev\s*\}\}/g, String(prev ?? ''));
+            const task = substitute(resolved, inputs, outputs);
             const res = await runSubAgent({ task, role: stg.role, tools: stg.tools, provider: step.provider, model: step.model }, ctx);
             addUsage(res.usage);
             if (!res.ok) throw new Error(res.error ?? 'stage failed');
