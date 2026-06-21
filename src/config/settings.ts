@@ -7,6 +7,7 @@ export interface ProviderConfig {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  headers?: Record<string, string>;
 }
 
 export interface MCPServerConfig {
@@ -79,6 +80,9 @@ const DEFAULT_SETTINGS: Settings = {
       baseUrl: 'https://openrouter.ai/api/v1',
       model: 'openrouter/free',
     },
+    custom: {
+      model: 'gpt-4o-mini',
+    },
   },
   ui: {
     color: true,
@@ -138,6 +142,12 @@ export function loadSettings(): Settings {
   if (process.env.OLLAMA_BASE_URL) {
     settings.providers.ollama = settings.providers.ollama || {};
     settings.providers.ollama.baseUrl = process.env.OLLAMA_BASE_URL;
+  }
+  if (process.env.CUSTOM_API_KEY || process.env.CUSTOM_BASE_URL || process.env.CUSTOM_MODEL) {
+    settings.providers.custom = settings.providers.custom || {};
+    if (process.env.CUSTOM_API_KEY) settings.providers.custom.apiKey = process.env.CUSTOM_API_KEY;
+    if (process.env.CUSTOM_BASE_URL) settings.providers.custom.baseUrl = process.env.CUSTOM_BASE_URL;
+    if (process.env.CUSTOM_MODEL) settings.providers.custom.model = process.env.CUSTOM_MODEL;
   }
 
   return settings;
