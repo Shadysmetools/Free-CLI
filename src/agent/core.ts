@@ -33,6 +33,15 @@ export interface AgentResult {
   };
 }
 
+/** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
+export function looksLikeToolAttempt(content: string): boolean {
+  const t = (content || '').trim();
+  if (!t) return false;
+  if (t.includes('<tool_call>')) return true;
+  if (/"name"\s*:/.test(t) && /"(arguments|parameters)"\s*:/.test(t)) return true;
+  return false;
+}
+
 export async function runAgent(
   providerArg: Provider,
   conversation: ConversationState,
@@ -84,6 +93,7 @@ export async function runAgent(
   let iterations = 0;
   let lastContent = '';
   let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  let repairedOnce = false;
 
   const CONTEXT_CHAR_LIMITS: Record<string, number> = {
     groq: 24_000,
@@ -167,8 +177,17 @@ export async function runAgent(
 
     lastContent = result.content;
 
-    // ── No tool calls → done ──────────────────────────────────────────────
+    // ── No tool calls → maybe a botched call, else done ───────────────────
     if (!result.tool_calls || result.tool_calls.length === 0) {
+      if (looksLikeToolAttempt(result.content) && !repairedOnce) {
+        repairedOnce = true;
+        addMessage(conversation, { role: 'assistant', content: result.content });
+        addMessage(conversation, {
+          role: 'user',
+          content: 'Your previous tool call was not valid JSON. Resend ONLY the corrected tool call as a single JSON object {"name":..., "arguments":{...}} with no extra text.',
+        });
+        continue;
+      }
       addMessage(conversation, { role: 'assistant', content: result.content });
       break;
     }
