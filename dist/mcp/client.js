@@ -34,7 +34,33 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MCPClient = void 0;
+exports.registerTools = registerTools;
 const child_process = __importStar(require("child_process"));
+const tools_1 = require("../agent/tools");
+/** Built-in tool names an MCP server must not silently shadow. */
+const BUILTIN_TOOL_NAMES = new Set(tools_1.TOOLS.map(t => t.name));
+/**
+ * Register a server's tools into the shared registry, skipping any name that
+ * would shadow a built-in tool or one already provided by another server.
+ * Pure + exported for testing. Returns the skipped names with a reason.
+ */
+function registerTools(registry, serverName, tools, reserved = BUILTIN_TOOL_NAMES) {
+    const registered = [];
+    const skipped = [];
+    for (const tool of tools) {
+        if (reserved.has(tool.name)) {
+            skipped.push({ name: tool.name, reason: 'shadows a built-in tool' });
+        }
+        else if (registry.has(tool.name)) {
+            skipped.push({ name: tool.name, reason: `already provided by "${registry.get(tool.name).serverName}"` });
+        }
+        else {
+            registry.set(tool.name, { serverName, tool });
+            registered.push(tool.name);
+        }
+    }
+    return { registered, skipped };
+}
 class MCPClient {
     constructor() {
         this.servers = new Map();
@@ -45,10 +71,11 @@ class MCPClient {
             const server = new MCPServerProcess(name, config);
             await server.start();
             this.servers.set(name, server);
-            // List tools
+            // List tools, registering only non-colliding names
             const tools = await server.listTools();
-            for (const tool of tools) {
-                this.toolRegistry.set(tool.name, { serverName: name, tool });
+            const { skipped } = registerTools(this.toolRegistry, name, tools);
+            for (const s of skipped) {
+                console.warn(`Warning: MCP tool "${s.name}" from "${name}" ${s.reason}; skipped.`);
             }
         }
         catch (err) {

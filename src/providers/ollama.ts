@@ -185,6 +185,10 @@ export class OllamaProvider implements Provider {
       });
 
       req.on('error', reject);
+      // Cap a hung request (e.g. model OOM never returns) instead of waiting forever.
+      req.setTimeout(Number(process.env.OLLAMA_TIMEOUT_MS) || 600_000, () => {
+        req.destroy(new Error('Ollama request timed out with no response. Is the model loaded? Try `ollama run <model>`.'));
+      });
       req.write(bodyStr);
       req.end();
     });
@@ -230,6 +234,10 @@ export class OllamaProvider implements Provider {
         res.on('error', reject);
       });
       req.on('error', reject);
+      // Cap a hung request (e.g. model OOM never returns) instead of waiting forever.
+      req.setTimeout(Number(process.env.OLLAMA_TIMEOUT_MS) || 600_000, () => {
+        req.destroy(new Error('Ollama request timed out with no response. Is the model loaded? Try `ollama run <model>`.'));
+      });
       req.write(bodyStr);
       req.end();
     });

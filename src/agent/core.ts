@@ -39,11 +39,17 @@ export interface AgentResult {
 
 /** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
 export function looksLikeToolAttempt(content: string): boolean {
-  const t = (content || '').trim();
+  let t = (content || '').trim();
   if (!t) return false;
   if (t.includes('<tool_call>')) return true;
-  if (/"name"\s*:/.test(t) && /"(arguments|parameters)"\s*:/.test(t)) return true;
-  return false;
+  // Strip a leading ```json fence if the model wrapped the call in one.
+  t = t.replace(/^```(?:json)?\s*/i, '').trim();
+  // Only treat as a botched tool call if the message is DOMINATED by a JSON
+  // object (starts with '{'), not merely prose that mentions name/arguments —
+  // otherwise legitimate prose like "pass a name and arguments field" triggers
+  // a spurious repair that pollutes the conversation.
+  if (!t.startsWith('{')) return false;
+  return /"name"\s*:/.test(t) && /"(arguments|parameters)"\s*:/.test(t);
 }
 
 /**

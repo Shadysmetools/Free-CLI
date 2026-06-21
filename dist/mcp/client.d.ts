@@ -1,4 +1,20 @@
 import { Tool } from '../providers/index';
+type ToolRegistry = Map<string, {
+    serverName: string;
+    tool: MCPTool;
+}>;
+/**
+ * Register a server's tools into the shared registry, skipping any name that
+ * would shadow a built-in tool or one already provided by another server.
+ * Pure + exported for testing. Returns the skipped names with a reason.
+ */
+export declare function registerTools(registry: ToolRegistry, serverName: string, tools: MCPTool[], reserved?: Set<string>): {
+    registered: string[];
+    skipped: Array<{
+        name: string;
+        reason: string;
+    }>;
+};
 export interface MCPTool {
     name: string;
     description: string;
@@ -32,4 +48,5 @@ export declare class MCPClient {
     }>;
     disconnectAll(): Promise<void>;
 }
+export {};
 //# sourceMappingURL=client.d.ts.map

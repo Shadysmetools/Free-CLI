@@ -1,5 +1,37 @@
 import * as child_process from 'child_process';
 import { Tool } from '../providers/index';
+import { TOOLS } from '../agent/tools';
+
+/** Built-in tool names an MCP server must not silently shadow. */
+const BUILTIN_TOOL_NAMES = new Set(TOOLS.map(t => t.name));
+
+type ToolRegistry = Map<string, { serverName: string; tool: MCPTool }>;
+
+/**
+ * Register a server's tools into the shared registry, skipping any name that
+ * would shadow a built-in tool or one already provided by another server.
+ * Pure + exported for testing. Returns the skipped names with a reason.
+ */
+export function registerTools(
+  registry: ToolRegistry,
+  serverName: string,
+  tools: MCPTool[],
+  reserved: Set<string> = BUILTIN_TOOL_NAMES,
+): { registered: string[]; skipped: Array<{ name: string; reason: string }> } {
+  const registered: string[] = [];
+  const skipped: Array<{ name: string; reason: string }> = [];
+  for (const tool of tools) {
+    if (reserved.has(tool.name)) {
+      skipped.push({ name: tool.name, reason: 'shadows a built-in tool' });
+    } else if (registry.has(tool.name)) {
+      skipped.push({ name: tool.name, reason: `already provided by "${registry.get(tool.name)!.serverName}"` });
+    } else {
+      registry.set(tool.name, { serverName, tool });
+      registered.push(tool.name);
+    }
+  }
+  return { registered, skipped };
+}
 
 export interface MCPTool {
   name: string;
@@ -32,10 +64,11 @@ export class MCPClient {
       await server.start();
       this.servers.set(name, server);
 
-      // List tools
+      // List tools, registering only non-colliding names
       const tools = await server.listTools();
-      for (const tool of tools) {
-        this.toolRegistry.set(tool.name, { serverName: name, tool });
+      const { skipped } = registerTools(this.toolRegistry, name, tools);
+      for (const s of skipped) {
+        console.warn(`Warning: MCP tool "${s.name}" from "${name}" ${s.reason}; skipped.`);
       }
     } catch (err) {
       console.warn(`Warning: MCP server "${name}" failed to start: ${(err as Error).message}`);

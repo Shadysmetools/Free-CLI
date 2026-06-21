@@ -390,18 +390,20 @@ function searchFiles(args: { pattern: string; path?: string; file_pattern?: stri
   const caseSensitive = args.case_sensitive === 'true';
   const rg = rgPath();
   if (rg) {
-    const parts = [
-      `"${rg}"`,
+    // execFileSync with an argv array bypasses the shell entirely — no quoting
+    // bugs, no metacharacter injection, works the same on cmd.exe and sh.
+    const rgArgs = [
       '--line-number', '--no-heading', '--color', 'never',
       caseSensitive ? '--case-sensitive' : '--ignore-case',
-      '--glob', '"!node_modules"', '--glob', '"!.git"', '--glob', '"!dist"',
-      args.file_pattern ? `--glob "${args.file_pattern}"` : '',
+      '--glob', '!node_modules', '--glob', '!.git', '--glob', '!dist',
       '--max-count', '50',
-      `"${args.pattern.replace(/"/g, '\\"')}"`,
-      `"${searchPath}"`,
-    ].filter(Boolean);
+    ];
+    if (args.file_pattern) rgArgs.push('--glob', args.file_pattern);
+    rgArgs.push(args.pattern, searchPath);
     try {
-      const out = child_process.execSync(parts.join(' '), { encoding: 'utf-8', timeout: 15000, maxBuffer: 1024 * 1024 * 8 });
+      const out = child_process.execFileSync(rg, rgArgs, {
+        encoding: 'utf-8', timeout: 15000, maxBuffer: 1024 * 1024 * 8, windowsHide: true,
+      });
       return { content: out.trim() || 'No matches found' };
     } catch (err) {
       const out = (err as { stdout?: string }).stdout;
@@ -472,6 +474,8 @@ function runCommand(args: { command: string; cwd?: string; timeout?: number }, c
       maxBuffer: 1024 * 1024 * 5, // 5MB
       // Use cmd.exe on Windows, sh on Unix
       shell: isWindows ? 'cmd.exe' : '/bin/sh',
+      windowsHide: true,        // don't flash a console window per command
+      killSignal: 'SIGKILL',    // SIGTERM is ignored on Windows; force-kill on timeout
     });
     return { content: result || '(no output)' };
   } catch (err) {
