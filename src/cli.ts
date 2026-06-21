@@ -20,6 +20,8 @@ import { renderMarkdown } from './ui/markdown';
 import { readInputWithBox, printAIResponseStart, printAIResponseEnd, printThinking, isTTYMode } from './ui/chat-input';
 import { MemoryManager } from './memory/index';
 import { SkillsManager } from './skills/index';
+import { setSkillsRuntime } from './skills/runtime';
+import { activateSkill } from './skills/activate';
 
 // ── Terminal cleanup on exit ──────────────────────────────────────────────────
 // Ensure raw mode is disabled and terminal is restored on ANY exit
@@ -98,6 +100,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
   const memory = new MemoryManager(cwd);
   const skills = new SkillsManager(cwd);
   skills.loadAll();
+  setSkillsRuntime(skills);
   const tokenTracker = new TokenTracker();
   const registry = createDefaultRegistry();
   registerWorkflowTools(registry);
@@ -129,6 +132,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
     memoryContext: memory.getSystemContext(),
     profileContext: profile.buildSystemBlock(cwd),
     personaContext: persona.buildSystemBlock(),
+    skillsCatalog: skills.getCatalog(),
   });
 
   // ── History ───────────────────────────────────────────────────────────────
@@ -327,6 +331,11 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
           }
           // declined → fall through to normal chat
         }
+        if (decision.kind === 'skill' && decision.target) {
+          const r = activateSkill(skills, decision.target, conversation);
+          if (r.ok) printInfo(r.message);
+          // fall through to runAgent with the skill now active (do NOT continue)
+        }
         // 'skill' or 'chat' → fall through to runAgent (skill context auto-injected there)
       } catch { /* router must never break chat */ }
     }
@@ -491,6 +500,13 @@ async function handleSlashCommand(input: string, ctx: SlashCommandContext): Prom
     }
 
     // ── Skills ────────────────────────────────────────────────────────────────
+    case 'skill': {
+      const name = args[0];
+      if (!name) { printError('Usage: /skill <name>   (list with /skills)'); break; }
+      const r = activateSkill(ctx.skills, name, ctx.conversation);
+      if (r.ok) printInfo(r.message); else printError(r.message);
+      break;
+    }
     case 'skills': {
       const sub = args[0]?.toLowerCase();
       if (!sub || sub === 'list') {

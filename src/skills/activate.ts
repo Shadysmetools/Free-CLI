@@ -1,11 +1,11 @@
 /** Activate a skill by injecting its full body into the conversation as a system message. */
 import { SkillsManager } from './index';
-import { Conversation } from '../agent/conversation';
+import { ConversationState } from '../agent/conversation';
 
 export function activateSkill(
   skills: SkillsManager,
   name: string,
-  conversation: Conversation,
+  conversation: ConversationState,
 ): { ok: boolean; message: string } {
   const s = skills.activate(name);
   if (!s) {
