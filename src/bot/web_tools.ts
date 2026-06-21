@@ -11,6 +11,7 @@
 
 import axios from 'axios';
 import * as https from 'https';
+import { webSearchStructured } from '../web/search';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,16 +27,19 @@ export interface ToolResult {
  * Falls back to Brave Search API if BRAVE_SEARCH_KEY is set.
  */
 export async function executeWebSearch(query: string): Promise<ToolResult> {
-  if (!query?.trim()) {
-    return { content: 'Error: query is required', isError: true };
+  if (!query?.trim()) return { content: 'Error: query is required', isError: true };
+  const results = await webSearchStructured(query, 5);
+  if (results.length === 0) {
+    return { content: `🔍 Web Search: "${query}"\n\nNo results found. Try: https://duckduckgo.com/?q=${encodeURIComponent(query)}` };
   }
-
-  const braveKey = process.env.BRAVE_SEARCH_KEY;
-  if (braveKey) {
-    return searchWithBrave(query, braveKey);
+  const parts = [`🔍 Web Search: "${query}"\n`];
+  for (const r of results) {
+    parts.push(`📄 **${r.title}**`);
+    if (r.snippet) parts.push(`   ${r.snippet}`);
+    parts.push(`   🔗 ${r.url}`);
+    parts.push('');
   }
-
-  return searchWithDuckDuckGo(query);
+  return { content: parts.join('\n') };
 }
 
 async function searchWithDuckDuckGo(query: string): Promise<ToolResult> {

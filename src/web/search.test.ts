@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBraveJson, parseDdgHtml } from './search';
+import { parseBraveJson, parseDdgHtml, webSearchStructured } from './search';
 
 describe('parseBraveJson', () => {
   it('extracts title/url/snippet from Brave web.results', () => {
@@ -44,5 +44,31 @@ describe('parseDdgHtml', () => {
     expect(parseDdgHtml(html, 5)).toEqual([
       { title: 'Real One', url: 'https://real.example/1', snippet: 'Snippet for Real One' },
     ]);
+  });
+});
+
+describe('webSearchStructured', () => {
+  const braveData = { web: { results: [{ title: 'B', url: 'https://b.com', description: 'd' }] } };
+  const ddgHtml = '<a class="result__a" href="https://d.com/x">DDG X</a>';
+
+  it('uses Brave when BRAVE_SEARCH_KEY is set', async () => {
+    const prev = process.env.BRAVE_SEARCH_KEY;
+    process.env.BRAVE_SEARCH_KEY = 'k';
+    const out = await webSearchStructured('q', 5, { httpGet: async () => ({ data: braveData }) });
+    if (prev === undefined) delete process.env.BRAVE_SEARCH_KEY; else process.env.BRAVE_SEARCH_KEY = prev;
+    expect(out).toEqual([{ title: 'B', url: 'https://b.com', snippet: 'd' }]);
+  });
+
+  it('falls back to DDG HTML when no key', async () => {
+    const prev = process.env.BRAVE_SEARCH_KEY;
+    delete process.env.BRAVE_SEARCH_KEY;
+    const out = await webSearchStructured('q', 5, { httpGet: async () => ({ data: ddgHtml }) });
+    if (prev !== undefined) process.env.BRAVE_SEARCH_KEY = prev;
+    expect(out).toEqual([{ title: 'DDG X', url: 'https://d.com/x' }]);
+  });
+
+  it('returns [] (never throws) on http error', async () => {
+    const out = await webSearchStructured('q', 5, { httpGet: async () => { throw new Error('net'); } });
+    expect(out).toEqual([]);
   });
 });

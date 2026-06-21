@@ -6,6 +6,7 @@
  * never throws — it returns [] on any failure so the research driver degrades
  * gracefully offline or when a backend is unavailable.
  */
+import axios from 'axios';
 export interface SearchResult { title: string; url: string; snippet?: string }
 
 /** Strip tags + decode the few entities that appear in DDG titles/snippets. */
@@ -38,6 +39,38 @@ function resolveDdgHref(href: string): string {
   if (m) { try { return decodeURIComponent(m[1]); } catch { /* fall through */ } }
   if (href.startsWith('//')) return 'https:' + href;
   return href;
+}
+
+export interface SearchDeps {
+  httpGet?: (url: string, headers?: Record<string, string>) => Promise<{ data: unknown }>;
+}
+
+const UA = 'Mozilla/5.0 (compatible; coderaw/1.0; +https://github.com/Shadysmetools/Free-CLI)';
+
+/** Structured web search with graceful degradation. Never throws → [] on failure. */
+export async function webSearchStructured(query: string, limit = 6, deps: SearchDeps = {}): Promise<SearchResult[]> {
+  const q = (query ?? '').trim();
+  if (!q) return [];
+  const httpGet = deps.httpGet ?? (async (url, headers) => {
+    const r = await axios.get(url, { timeout: 12000, headers: { 'User-Agent': UA, ...(headers ?? {}) }, responseType: 'json' as const });
+    return { data: r.data };
+  });
+  try {
+    const braveKey = process.env.BRAVE_SEARCH_KEY;
+    if (braveKey) {
+      const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=${limit}`;
+      const { data } = await httpGet(url, { Accept: 'application/json', 'X-Subscription-Token': braveKey });
+      const parsed = parseBraveJson(data, limit);
+      if (parsed.length) return parsed;
+    }
+    // DuckDuckGo HTML (free, real result links). responseType text — axios returns the raw HTML string.
+    const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+    const { data } = await httpGet(ddgUrl);
+    const html = typeof data === 'string' ? data : '';
+    return parseDdgHtml(html, limit);
+  } catch {
+    return [];
+  }
 }
 
 export function parseDdgHtml(html: string, limit: number): SearchResult[] {
