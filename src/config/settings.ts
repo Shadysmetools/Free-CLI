@@ -48,6 +48,11 @@ export interface Settings {
     unattended?: 'deny' | 'allow';
     confirmDefault?: 'approve' | 'skip';
   };
+  workflows?: {
+    concurrency?: { ollama?: number; default?: number };
+    defaultRole?: string;
+    goal?: { maxRounds?: number; budgetUsd?: number };
+  };
 }
 
 // Windows: use %APPDATA%\coderaw, Unix: ~/.coderaw
@@ -100,6 +105,10 @@ const DEFAULT_SETTINGS: Settings = {
     deny: [],
     unattended: 'deny',
     confirmDefault: 'approve',
+  },
+  workflows: {
+    concurrency: { ollama: 1, default: 4 },
+    goal: { maxRounds: 5 },
   },
 };
 
