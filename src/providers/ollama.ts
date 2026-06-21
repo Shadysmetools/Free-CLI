@@ -48,13 +48,13 @@ export class OllamaProvider implements Provider {
         tool_call_id: m.tool_call_id,
       })),
       tools: ollamaTools,
-      stream: stream && !tools,
+      stream: stream && !!onToken,
       options: {
         temperature: 0.3,
       },
     };
 
-    if (stream && !tools && onToken) {
+    if (stream && onToken) {
       return this.streamComplete(body, onToken);
     }
 
@@ -125,6 +125,7 @@ export class OllamaProvider implements Provider {
       let fullContent = '';
       let totalPromptTokens = 0;
       let totalCompletionTokens = 0;
+      let nativeToolCalls: Array<{ function: { name: string; arguments: unknown } }> | undefined;
 
       const req = lib.request(options, (res) => {
         res.on('data', (chunk: Buffer) => {
@@ -132,7 +133,7 @@ export class OllamaProvider implements Provider {
           for (const line of lines) {
             try {
               const data = JSON.parse(line) as {
-                message?: { content?: string };
+                message?: { content?: string; tool_calls?: Array<{ function: { name: string; arguments: unknown } }> };
                 done?: boolean;
                 prompt_eval_count?: number;
                 eval_count?: number;
@@ -140,6 +141,9 @@ export class OllamaProvider implements Provider {
               if (data.message?.content) {
                 fullContent += data.message.content;
                 onToken(data.message.content);
+              }
+              if (data.message?.tool_calls?.length) {
+                nativeToolCalls = data.message.tool_calls;
               }
               if (data.done) {
                 totalPromptTokens = data.prompt_eval_count || 0;
@@ -149,8 +153,27 @@ export class OllamaProvider implements Provider {
           }
         });
         res.on('end', () => {
+          let tool_calls = nativeToolCalls?.map((tc, i) => ({
+            id: `call_${i}`,
+            type: 'function' as const,
+            function: {
+              name: tc.function.name,
+              arguments: typeof tc.function.arguments === 'string'
+                ? tc.function.arguments
+                : JSON.stringify(tc.function.arguments),
+            },
+          }));
+          let content = fullContent;
+          if (!tool_calls || tool_calls.length === 0) {
+            const rec = recoverFromStreamedContent(fullContent);
+            content = rec.content;
+            tool_calls = rec.tool_calls;
+          } else {
+            content = '';
+          }
           resolve({
-            content: fullContent,
+            content,
+            tool_calls,
             usage: {
               prompt_tokens: totalPromptTokens,
               completion_tokens: totalCompletionTokens,
@@ -260,6 +283,13 @@ export function recoverToolCallsFromText(content: string): RecoveredToolCall[] {
     }
   }
   return out;
+}
+
+/** Split accumulated streamed content into final text vs recovered tool calls. */
+export function recoverFromStreamedContent(content: string): { content: string; tool_calls?: RecoveredToolCall[] } {
+  const recovered = recoverToolCallsFromText(content);
+  if (recovered.length > 0) return { content: '', tool_calls: recovered };
+  return { content };
 }
 
 function parseToolObjects(text: string): ToolishObject[] {

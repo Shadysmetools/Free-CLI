@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recoverToolCallsFromText } from './ollama';
+import { recoverToolCallsFromText, recoverFromStreamedContent } from './ollama';
 
 const names = (r: ReturnType<typeof recoverToolCallsFromText>) => r.map(c => c.function.name);
 
@@ -30,5 +30,19 @@ describe('recoverToolCallsFromText', () => {
   });
   it('returns [] for malformed JSON', () => {
     expect(recoverToolCallsFromText('{"name":"read_file","arguments":{')).toEqual([]);
+  });
+});
+
+describe('recoverFromStreamedContent', () => {
+  it('extracts tool calls from accumulated streamed text', () => {
+    const acc = 'Working on it...\n{"name":"read_file","arguments":{"path":"x"}}';
+    const r = recoverFromStreamedContent(acc);
+    expect(r.tool_calls?.map(c => c.function.name)).toEqual(['read_file']);
+    expect(r.content).toBe('');
+  });
+  it('keeps content when there is no tool call', () => {
+    const r = recoverFromStreamedContent('just an answer');
+    expect(r.tool_calls).toBeUndefined();
+    expect(r.content).toBe('just an answer');
   });
 });
