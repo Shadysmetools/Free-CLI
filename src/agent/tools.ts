@@ -317,6 +317,12 @@ export async function executeTool(
       case 'generate_diagram': return generateDiagram(args as { type?: string; code: string; output_path: string; format?: string; width?: number }, cwd);
       case 'generate_image': return generateImage(args as { prompt: string; output_path: string; size?: string; quality?: string; style?: string }, cwd);
       case 'update_plan': return updatePlan(args as { items: unknown });
+      case 'spawn_agent':
+      case 'run_parallel': {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { executeWorkflowTool } = require('../workflow/tools') as typeof import('../workflow/tools');
+        return executeWorkflowTool(name, args, cwd);
+      }
       default: return { content: `Unknown tool: ${name}`, isError: true };
     }
   } catch (err) {
