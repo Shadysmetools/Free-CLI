@@ -44,8 +44,8 @@ export function parseDdgHtml(html: string, limit: number): SearchResult[] {
   if (!html) return [];
   const out: SearchResult[] = [];
   // Result anchors: <a class="result__a" href="...">title</a>
-  const anchorRe = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snippetRe = /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+  const anchorRe = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]{0,400}?)<\/a>/gi;
+  const snippetRe = /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]{0,1000}?)<\/a>/gi;
   const snippets: string[] = [];
   let sm: RegExpExecArray | null;
   while ((sm = snippetRe.exec(html)) !== null) snippets.push(clean(sm[1]));
@@ -54,7 +54,7 @@ export function parseDdgHtml(html: string, limit: number): SearchResult[] {
   while ((m = anchorRe.exec(html)) !== null) {
     const url = resolveDdgHref(m[1]);
     const title = clean(m[2]);
-    if (!title || !/^https?:\/\//i.test(url)) { i++; continue; }
+    if (!title || !/^https?:\/\//i.test(url)) { continue; }
     out.push({ title, url, ...(snippets[i] ? { snippet: snippets[i] } : {}) });
     i++;
     if (out.length >= limit) break;
