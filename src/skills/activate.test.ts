@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { activateSkill } from './activate';
 import { SkillsManager } from './index';
-import type { Conversation } from '../agent/conversation';
+import type { ConversationState as Conversation } from '../agent/conversation';
 
 function loaded(): SkillsManager {
   const m = new SkillsManager(process.cwd());
