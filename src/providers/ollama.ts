@@ -230,7 +230,7 @@ type ToolishObject = { name?: unknown; arguments?: unknown; parameters?: unknown
  * Recover tool calls a model emitted as JSON text in `content`. Handles bare
  * objects, arrays, ```json fences, and <tool_call>…</tool_call> wrappers.
  */
-function recoverToolCallsFromText(content: string): RecoveredToolCall[] {
+export function recoverToolCallsFromText(content: string): RecoveredToolCall[] {
   const text = (content || '').trim();
   if (!text) return [];
 
@@ -246,8 +246,7 @@ function recoverToolCallsFromText(content: string): RecoveredToolCall[] {
   }
 
   if (candidates.length === 0) {
-    const firstBrace = text.search(/[[{]/);
-    if (firstBrace >= 0) candidates.push(text.slice(firstBrace));
+    candidates.push(...extractAllJsonObjects(text));
   }
 
   const out: RecoveredToolCall[] = [];
@@ -301,6 +300,20 @@ function extractFirstJsonObject(text: string): string | null {
     else if (ch === '}') { depth--; if (depth === 0) return text.slice(start, i + 1); }
   }
   return null;
+}
+
+/** Extract every top-level balanced JSON object in order (handles multiple calls). */
+function extractAllJsonObjects(text: string): string[] {
+  const out: string[] = [];
+  let rest = text;
+  for (;;) {
+    const obj = extractFirstJsonObject(rest);
+    if (!obj) break;
+    out.push(obj);
+    const idx = rest.indexOf(obj);
+    rest = rest.slice(idx + obj.length);
+  }
+  return out;
 }
 
 /** Ollama wants tool-call arguments as an object; we store them as a JSON string. */
