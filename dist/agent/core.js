@@ -3,8 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fileChanges = void 0;
+exports.fileChanges = exports.CONTEXT_TOKEN_LIMITS = void 0;
 exports.looksLikeToolAttempt = looksLikeToolAttempt;
+exports.estimateTokens = estimateTokens;
 exports.trimMessages = trimMessages;
 exports.runAgent = runAgent;
 const conversation_1 = require("./conversation");
@@ -13,6 +14,7 @@ Object.defineProperty(exports, "fileChanges", { enumerable: true, get: function 
 const terminal_1 = require("../ui/terminal");
 const fallback_1 = require("../providers/fallback");
 const permissions_1 = require("../permissions");
+const stream_filter_1 = require("./stream-filter");
 const chalk_1 = __importDefault(require("chalk"));
 /** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
 function looksLikeToolAttempt(content) {
@@ -32,12 +34,44 @@ function looksLikeToolAttempt(content) {
     return /"name"\s*:/.test(t) && /"(arguments|parameters)"\s*:/.test(t);
 }
 /**
- * Trim a conversation to fit a character budget WITHOUT orphaning tool-result
- * messages. Providers (Anthropic/OpenAI/Groq) return 400 if a `tool` message is
- * not immediately preceded by the assistant message carrying its tool_calls, so
- * after trimming we drop any leading `tool` messages left at the front.
+ * Estimate the number of tokens in a piece of text.
+ *
+ * This is a deliberately dependency-free heuristic: most byte-pair tokenizers
+ * (GPT/Claude/Llama families) average roughly 4 characters per token for typical
+ * English + code, so ceil(chars / 4) is a good-enough budgeting proxy for a
+ * local-first tool that must not reach for the network or a heavy tokenizer dep.
+ * It intentionally OVER-estimates slightly (ceil) so we trim conservatively and
+ * stay safely under real provider context windows.
  */
-function trimMessages(messages, contextLimit, minKeep = 5) {
+function estimateTokens(text) {
+    if (!text)
+        return 0;
+    return Math.ceil(text.length / 4);
+}
+/**
+ * Per-provider context budgets, expressed in ESTIMATED TOKENS (see
+ * estimateTokens). These mirror each provider's real context window with a
+ * safety margin reserved for the system prompt, tool schemas, and the model's
+ * own completion. `trimMessages` is fed these via the estimateTokens measure.
+ */
+exports.CONTEXT_TOKEN_LIMITS = {
+    groq: 6000,
+    openrouter: 20000,
+    anthropic: 50000,
+    ollama: 15000,
+    google: 50000,
+};
+/**
+ * Trim a conversation to fit a budget WITHOUT orphaning tool-result messages.
+ * Providers (Anthropic/OpenAI/Groq) return 400 if a `tool` message is not
+ * immediately preceded by the assistant message carrying its tool_calls, so
+ * after trimming we drop any leading `tool` messages left at the front.
+ *
+ * The budget is measured by `measure`, which defaults to raw character length
+ * (the original behaviour). Pass `estimateTokens` to budget by ESTIMATED TOKENS
+ * instead — the agent loop does this so history is managed in token space.
+ */
+function trimMessages(messages, contextLimit, minKeep = 5, measure = (t) => t.length) {
     const systemMsgs = messages.filter(m => m.role === 'system');
     const nonSystem = messages.filter(m => m.role !== 'system');
     for (const m of nonSystem) {
@@ -45,7 +79,7 @@ function trimMessages(messages, contextLimit, minKeep = 5) {
             m.content = m.content.slice(0, 500) + '\n…[truncated]';
         }
     }
-    const total = () => [...systemMsgs, ...nonSystem].reduce((s, m) => s + m.content.length, 0);
+    const total = () => [...systemMsgs, ...nonSystem].reduce((s, m) => s + measure(m.content), 0);
     if (total() <= contextLimit)
         return messages;
     while (nonSystem.length > minKeep && total() > contextLimit) {
@@ -107,21 +141,22 @@ async function runAgent(providerArg, conversation, userMessage, options) {
     let lastContent = '';
     let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
     let repairedOnce = false;
-    const CONTEXT_CHAR_LIMITS = {
-        groq: 24000,
-        openrouter: 80000,
-        anthropic: 200000,
-        ollama: 60000,
-        google: 200000,
-    };
-    const contextLimit = CONTEXT_CHAR_LIMITS[provider.name] ?? 60000;
+    // Manage history by ESTIMATED TOKENS (see estimateTokens / CONTEXT_TOKEN_LIMITS)
+    // rather than raw characters, so the kept window maps to the model's real
+    // context window regardless of how token-dense the text is.
+    const contextLimit = exports.CONTEXT_TOKEN_LIMITS[provider.name] ?? 15000;
     function trimConversation(minKeep = 5) {
-        conversation.messages = trimMessages(conversation.messages, contextLimit, minKeep);
+        conversation.messages = trimMessages(conversation.messages, contextLimit, minKeep, estimateTokens);
     }
     while (iterations < maxIterations) {
         iterations++;
-        const doStream = stream && iterations === 1;
+        // Stream on EVERY iteration (#7) so the final answer AFTER tool calls also
+        // streams — not just iteration 1. A per-iteration StreamFilter suppresses
+        // raw tool-call JSON that local models emit as text, so the user never sees
+        // it mid-stream.
+        const doStream = stream;
         let tokensStreamed = false;
+        const streamFilter = new stream_filter_1.StreamFilter();
         trimConversation(5);
         let result;
         try {
@@ -130,10 +165,13 @@ async function runAgent(providerArg, conversation, userMessage, options) {
                 tools: allTools,
                 stream: doStream,
                 onToken: doStream ? (token) => {
-                    tokensStreamed = true;
-                    process.stdout.write(chalk_1.default.white(token));
-                    if (onToken)
-                        onToken(token);
+                    const visible = streamFilter.push(token);
+                    if (visible) {
+                        tokensStreamed = true;
+                        process.stdout.write(chalk_1.default.white(visible));
+                        if (onToken)
+                            onToken(visible);
+                    }
                 } : undefined,
             }, (modelName) => {
                 // Quiet one-liner when fallback provider is used
@@ -148,6 +186,17 @@ async function runAgent(providerArg, conversation, userMessage, options) {
             const msg = err.message;
             (0, terminal_1.printError)(`Provider error: ${msg}`);
             return { content: `Error: ${msg}` };
+        }
+        // Flush any visible content the filter buffered while still deciding
+        // prose-vs-tool (e.g. short prose that never hit a flush boundary).
+        if (doStream) {
+            const tail = streamFilter.flush();
+            if (tail) {
+                tokensStreamed = true;
+                process.stdout.write(chalk_1.default.white(tail));
+                if (onToken)
+                    onToken(tail);
+            }
         }
         if (result.usage) {
             (0, conversation_1.addUsage)(conversation, result.usage);
