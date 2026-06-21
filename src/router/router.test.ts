@@ -85,4 +85,11 @@ describe('applyRouterCommand', () => {
     expect(applyRouterCommand(s, 'status').changed).toBe(false);
     expect(applyRouterCommand(s, 'status').message.toLowerCase()).toContain('on');
   });
+
+  it('initializes settings.router when absent', () => {
+    const s: any = {};
+    const r = applyRouterCommand(s, 'on');
+    expect(r.changed).toBe(true);
+    expect(s.router.enabled).toBe(true);
+  });
 });

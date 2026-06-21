@@ -23,6 +23,7 @@ const CODE_RE = /(=>|;\s*$|\{[\s\S]*\}|```|\bfunction\b|\bconst\b\s+\w+\s*=)/;
 // Invocation cues — the user must signal they want to run/use a named thing.
 // hybridSearch normalizes its top hit to 1.0, so the score alone cannot gate
 // routing; without an explicit cue, bare token overlap would hijack chat.
+// Note: "workflow"/"skill"/"pipeline" are noun cues (catch "the github skill") — looser than the verbs; the requirement that the query also share tokens with the matched item keeps precision acceptable.
 const INVOKE_RE = /\b(run|use|execute|start|launch|invoke|trigger|apply|workflow|skill|pipeline)\b/i;
 
 const RESEARCH_CONF = 0.75;
@@ -41,9 +42,9 @@ export async function classifyIntent(text: string, ctx: RouterContext, deps: Rou
     if (t.endsWith('?') && !RESEARCH_RE.test(t)) return chat('plain question');
 
     // 2. Intent signals (regex, local). Strong signals short-circuit before hybrid.
-    const candidates: RouteDecision[] = [];
     if (RESEARCH_RE.test(t)) return { kind: 'research', confidence: RESEARCH_CONF, reason: 'research verb' };
     if (GOAL_RE.test(t)) return { kind: 'goal', confidence: GOAL_STRONG_CONF, reason: 'autonomous-goal phrasing' };
+    const candidates: RouteDecision[] = [];
     if (GOAL_VERB_RE.test(t)) candidates.push({ kind: 'goal', confidence: GOAL_WEAK_CONF, reason: 'build/implement verb' });
 
     // 3. Named-item match via hybrid over workflows + skills.
