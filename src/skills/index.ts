@@ -285,6 +285,10 @@ List trigger conditions, keywords, or scenarios when this skill applies.
 ## Instructions
 Step-by-step instructions for the AI when this skill is active.
 
+## Resources
+Bundle extra files in this skill's folder (e.g. references/notes.md, scripts/run.sh)
+and point to them by relative path; the agent reads them on demand with read_file.
+
 ## Examples
 \`\`\`bash
 # Example commands or code
