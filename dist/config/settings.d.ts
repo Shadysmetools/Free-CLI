@@ -3,6 +3,7 @@ export interface ProviderConfig {
     baseUrl?: string;
     model?: string;
     headers?: Record<string, string>;
+    embeddingsModel?: string;
 }
 export interface MCPServerConfig {
     command: string;
@@ -54,6 +55,13 @@ export interface Settings {
     research?: {
         maxQueries?: number;
         maxSources?: number;
+    };
+    router?: {
+        enabled?: boolean;
+        confidenceThreshold?: number;
+        confirmGoal?: boolean;
+        autoRunSafe?: boolean;
+        llmAssist?: boolean;
     };
 }
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */

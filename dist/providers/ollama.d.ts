@@ -6,6 +6,8 @@ export declare class OllamaProvider implements Provider {
     constructor(model: string, baseUrl?: string);
     isAvailable(): Promise<boolean>;
     complete(options: CompletionOptions): Promise<CompletionResult>;
+    /** Semantic embeddings via Ollama /api/embed. Reuses the tested match/embeddings logic. */
+    embed(texts: string[], model: string): Promise<number[][] | null>;
     private streamComplete;
     private httpGet;
     private httpPost;

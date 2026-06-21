@@ -62,6 +62,8 @@ export interface Provider {
   model: string;
   complete(options: CompletionOptions): Promise<CompletionResult>;
   isAvailable(): Promise<boolean>;
+  /** Optional semantic embeddings (implemented by Ollama). Returns null on failure. */
+  embed?(texts: string[], model: string): Promise<number[][] | null>;
 }
 
 export function createProvider(providerName: string, settings: Settings): Provider {

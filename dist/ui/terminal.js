@@ -180,6 +180,7 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/workflow')} <name>     Run a named workflow (--input k=v)
   ${c.green('/goal')} "<text>"       Run an autonomous goal with pre-auth tools
   ${c.green('/research')} "<question>"  Deep research: web search → fetch → cited report
+  ${c.green('/router')} on|off|status   Natural-language routing (text → research/goal/workflow/skill)
 
   ${c.bold.dim('── Other ─────────────────────────────────────')}
   ${c.green('/plan')} <task>         Generate execution plan
