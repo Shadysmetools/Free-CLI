@@ -5,6 +5,7 @@ import { matchesAny, DEFAULT_DENY } from './rules';
 const KNOWN_SAFE = new Set([
   'read_file', 'search_files', 'list_files',
   'git_status', 'git_diff', 'git_log', 'memory_search', 'memory_save',
+  'web_search', 'web_fetch',
 ]);
 
 const DESTRUCTIVE: RegExp[] = [
