@@ -333,7 +333,7 @@ export async function startCLI(opts: CLIOptions = {}): Promise<void> {
         }
         if (decision.kind === 'skill' && decision.target) {
           const r = activateSkill(skills, decision.target, conversation);
-          if (r.ok) printInfo(r.message);
+          if (r.ok) printInfo(r.message); else printError(r.message);
           // fall through to runAgent with the skill now active (do NOT continue)
         }
         // 'skill' or 'chat' → fall through to runAgent (skill context auto-injected there)
