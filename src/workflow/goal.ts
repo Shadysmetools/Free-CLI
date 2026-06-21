@@ -11,6 +11,7 @@ import { RunnerContext, SubAgentSpec, SubAgentResult, runSubAgent as realRunSubA
 import { PlanItem, setPlan, planToSteps, planSummary } from '../agent/plan';
 import { printPlanBox, printInfo } from '../ui/terminal';
 import { executeTool } from '../agent/tools';
+import { gate, persistAllowPattern } from '../permissions';
 
 export interface GoalOptions { goal: string; allow: string[]; verifyCommand?: string; maxRounds?: number; budgetUsd?: number }
 export interface GoalResult {
@@ -38,8 +39,43 @@ export function parsePlan(text: string): PlanItem[] {
     .map(content => ({ content, status: 'pending' as const }));
 }
 
-/** Default external verifier: run the command via run_command, pass = non-error exit. */
-async function defaultVerify(cmd: string, cwd: string): Promise<{ passed: boolean; output: string }> {
+/** Default external verifier: run the command via run_command, pass = non-error exit.
+ *  When a permissions Rules object is available, the command is routed through gate()
+ *  so that the user's allow-list and deny rules are honoured. If permissions are disabled
+ *  (rules === undefined) the call falls back to the original ungated behaviour.
+ *
+ *  Allow-entry semantics for run_command:
+ *    - The gate's classify() uses the command string as the subject (not the tool name).
+ *    - opts.allow entries are merged into both rules.allow (for glob matching) and
+ *      sessionAllow (for exact matching).
+ *    - A bare 'run_command' entry in opts.allow does NOT match via glob (the subject is
+ *      the command string, not the tool name). To bridge this, if 'run_command' appears
+ *      in sessionAllow (indicating a broad pre-authorisation of shell commands for this
+ *      goal run), the specific verify command is added to sessionAllow so the gate lets
+ *      it through silently. */
+async function defaultVerify(
+  cmd: string,
+  cwd: string,
+  goalCtx?: RunnerContext,
+): Promise<{ passed: boolean; output: string }> {
+  if (goalCtx?.permissions) {
+    // Clone sessionAllow so we don't mutate the shared set; if 'run_command' was
+    // pre-authorised as a blanket grant, also admit the specific command string.
+    const sessionAllow = new Set<string>(goalCtx.sessionAllow ?? []);
+    if (sessionAllow.has('run_command')) sessionAllow.add(cmd);
+
+    const gateCtx = {
+      cwd: goalCtx.cwd,
+      rules: goalCtx.permissions,
+      isInteractive: Boolean(process.stdout.isTTY) && !goalCtx.unattended,
+      sessionAllow,
+      persistAllow: persistAllowPattern,
+    };
+    const decision = await gate('run_command', { command: cmd }, gateCtx);
+    if (!decision.allowed) {
+      return { passed: false, output: `verify command not permitted by gate: ${decision.reasonForModel ?? ''}` };
+    }
+  }
   const res = await executeTool('run_command', { command: cmd }, cwd);
   return { passed: !res.isError, output: res.content };
 }
@@ -56,7 +92,6 @@ function defaultDetect(cwd: string): string | null {
 
 export async function runGoal(opts: GoalOptions, ctx: RunnerContext, deps: GoalDeps = {}): Promise<GoalResult> {
   const runSubAgent = deps.runSubAgent ?? realRunSubAgent;
-  const verify = deps.verify ?? defaultVerify;
   const detect = deps.detectVerifyCommand ?? defaultDetect;
   const render = deps.render !== false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,6 +104,9 @@ export async function runGoal(opts: GoalOptions, ctx: RunnerContext, deps: GoalD
   const sessionAllow = new Set<string>(ctx.sessionAllow ?? []);
   for (const a of opts.allow) sessionAllow.add(a);
   const goalCtx: RunnerContext = { ...ctx, sessionAllow };
+
+  // Resolve verify after goalCtx so the default path can pass it to the gate.
+  const verify = deps.verify ?? ((cmd: string, cwd: string) => defaultVerify(cmd, cwd, goalCtx));
 
   const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   const addUsage = (u?: SubAgentResult['usage']) => { if (u) { usage.prompt_tokens += u.prompt_tokens; usage.completion_tokens += u.completion_tokens; usage.total_tokens += u.total_tokens; } };
