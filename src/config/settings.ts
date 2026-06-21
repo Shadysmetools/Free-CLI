@@ -53,6 +53,7 @@ export interface Settings {
     defaultRole?: string;
     goal?: { maxRounds?: number; budgetUsd?: number };
   };
+  research?: { maxQueries?: number; maxSources?: number };
 }
 
 // Windows: use %APPDATA%\coderaw, Unix: ~/.coderaw
@@ -110,6 +111,7 @@ const DEFAULT_SETTINGS: Settings = {
     concurrency: { ollama: 1, default: 4 },
     goal: { maxRounds: 5 },
   },
+  research: { maxQueries: 5, maxSources: 8 },
 };
 
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */
