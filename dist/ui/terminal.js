@@ -175,6 +175,11 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/models')} [provider]   Full model list per provider
   ${c.green('/model')} <p>:<m>       Switch provider/model mid-session
 
+  ${c.bold.dim('── Workflows ────────────────────────────────')}
+  ${c.green('/workflows')}           List available workflow definitions
+  ${c.green('/workflow')} <name>     Run a named workflow (--input k=v)
+  ${c.green('/goal')} "<text>"       Run an autonomous goal with pre-auth tools
+
   ${c.bold.dim('── Other ─────────────────────────────────────')}
   ${c.green('/plan')} <task>         Generate execution plan
   ${c.green('/persona')} [list/set]  Manage language persona

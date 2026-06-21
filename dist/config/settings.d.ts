@@ -40,6 +40,17 @@ export interface Settings {
         unattended?: 'deny' | 'allow';
         confirmDefault?: 'approve' | 'skip';
     };
+    workflows?: {
+        concurrency?: {
+            ollama?: number;
+            default?: number;
+        };
+        defaultRole?: string;
+        goal?: {
+            maxRounds?: number;
+            budgetUsd?: number;
+        };
+    };
 }
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */
 export declare function getDefaultSettings(): Settings;

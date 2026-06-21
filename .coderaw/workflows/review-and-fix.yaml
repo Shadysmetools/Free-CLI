@@ -1,0 +1,14 @@
+# .coderaw/workflows/review-and-fix.yaml
+name: review-and-fix
+description: Review a file, then apply the suggested fixes.
+inputs: [path]
+steps:
+  - id: find
+    type: agent
+    role: reviewer
+    task: "Review the file {{path}} and list concrete, specific issues to fix. Be precise."
+  - id: fix
+    type: agent
+    role: coder
+    task: "Apply these fixes to {{path}}. Make the minimal change for each:\n{{steps.find.output}}"
+    depends_on: [find]

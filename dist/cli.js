@@ -81,6 +81,7 @@ const rerank_1 = require("./rag/rerank");
 const roles_1 = require("./agents/roles");
 const index_7 = require("./diagrams/index");
 const index_8 = require("./persona/index");
+const index_9 = require("./workflow/index");
 async function startCLI(opts = {}) {
     // ── First-run onboarding ───────────────────────────────────────────────────
     // Run the friendly setup wizard ONLY on a genuine first run (no config.yaml
@@ -112,6 +113,7 @@ async function startCLI(opts = {}) {
     skills.loadAll();
     const tokenTracker = new tokens_1.TokenTracker();
     const registry = (0, index_4.createDefaultRegistry)();
+    (0, index_9.registerWorkflowTools)(registry);
     const profile = new index_6.ProfileManager();
     const persona = new index_8.PersonaManager();
     if (mcpClient) {
@@ -275,6 +277,7 @@ async function startCLI(opts = {}) {
             //    The gap between this header and the first streaming token IS the
             //    visual "thinking" experience (0.5–3 s of API latency).
             (0, chat_input_1.printAIResponseStart)(tty);
+            (0, index_9.setWorkflowRuntime)((0, index_9.buildRunnerContext)(makeSlashCtx()));
             let streamedContent = '';
             const agentResult = await (0, core_1.runAgent)(provider, conversation, input, {
                 cwd, stream: true, mcpClient, registry, memory, skills, tokenTracker,
@@ -1608,6 +1611,68 @@ Be specific about filenames and actions. Max 8 steps.`;
             console.log(chalk_1.default.dim(`  ${available}/${statuses.length} providers available`));
             console.log(chalk_1.default.dim('  /models — see all models  |  /model <provider>:<model> — switch'));
             console.log('');
+            break;
+        }
+        // ── Workflow ──────────────────────────────────────────────────────────────
+        case 'workflows': {
+            const map = (0, index_9.loadWorkflows)((0, index_9.workflowDirs)(ctx.cwd));
+            if (map.size === 0) {
+                (0, terminal_1.printInfo)('No workflows found. Add YAML files to .coderaw/workflows/.');
+                break;
+            }
+            (0, terminal_1.printSectionHeader)('🧩 Available Workflows');
+            for (const [name, def] of map)
+                console.log(`  ${chalk_1.default.bold(name.padEnd(20))} ${chalk_1.default.dim(def.description ?? `${def.steps.length} steps`)}`);
+            break;
+        }
+        case 'workflow': {
+            const { name, inputs } = (0, index_9.parseInputArgs)(args);
+            if (!name) {
+                (0, terminal_1.printError)('Usage: /workflow <name> [--input k=v ...]');
+                break;
+            }
+            const def = (0, index_9.loadWorkflows)((0, index_9.workflowDirs)(ctx.cwd)).get(name);
+            if (!def) {
+                (0, terminal_1.printError)(`Workflow not found: ${name}. Try /workflows.`);
+                break;
+            }
+            (0, terminal_1.printInfo)(`Running workflow: ${name}`);
+            const run = await (0, index_9.runWorkflow)(def, inputs, (0, index_9.buildRunnerContext)(ctx));
+            for (const s of run.steps)
+                console.log(`  ${s.ok ? chalk_1.default.green('✓') : chalk_1.default.red('✗')} ${chalk_1.default.bold(s.id)}${s.error ? chalk_1.default.red(` — ${s.error}`) : ''}`);
+            console.log(`\n${run.ok ? chalk_1.default.green('Workflow complete.') : chalk_1.default.yellow('Workflow finished with failures.')} ${chalk_1.default.dim(`(${run.usage.total_tokens} tokens)`)}`);
+            const last = run.steps[run.steps.length - 1];
+            if (last?.output) {
+                (0, terminal_1.printSectionHeader)(`Output: ${last.id}`);
+                console.log(last.output);
+            }
+            break;
+        }
+        case 'goal': {
+            const goalText = args.join(' ').trim();
+            if (!goalText) {
+                (0, terminal_1.printError)('Usage: /goal "<what you want accomplished>"');
+                break;
+            }
+            const detected = (() => { try {
+                return require('fs').existsSync(require('path').join(ctx.cwd, 'package.json'));
+            }
+            catch {
+                return false;
+            } })();
+            const allowList = ['run_command', 'read_file', 'write_file', 'edit_file', 'search_files', 'list_files'];
+            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+            const inq = require('inquirer');
+            console.log(`\n  ${chalk_1.default.bold('Goal:')} ${goalText}`);
+            console.log(`  ${chalk_1.default.bold('Pre-authorized tools for this run:')} ${allowList.join(', ')}`);
+            console.log(`  ${chalk_1.default.bold('Verification:')} ${detected ? 'npm test (auto-detected)' : 'auto-detect / none'}`);
+            const { go } = await inq.prompt([{ type: 'confirm', name: 'go', message: 'Run this autonomous goal with the above permissions?', default: false }]);
+            if (!go) {
+                (0, terminal_1.printInfo)('Cancelled.');
+                break;
+            }
+            const res = await (0, index_9.runGoal)({ goal: goalText, allow: allowList }, (0, index_9.buildRunnerContext)(ctx));
+            console.log(`\n  ${res.ok ? chalk_1.default.green('✓ ' + res.summary) : chalk_1.default.yellow('• ' + res.summary)} ${chalk_1.default.dim(`(${res.usage.total_tokens} tokens, stopped: ${res.stoppedBy})`)}`);
             break;
         }
         default:

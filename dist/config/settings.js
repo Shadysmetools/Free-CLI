@@ -91,6 +91,10 @@ const DEFAULT_SETTINGS = {
         unattended: 'deny',
         confirmDefault: 'approve',
     },
+    workflows: {
+        concurrency: { ollama: 1, default: 4 },
+        goal: { maxRounds: 5 },
+    },
 };
 /** Return a fresh deep clone of the built-in default settings (no file/env reads). */
 function getDefaultSettings() {

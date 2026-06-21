@@ -333,6 +333,12 @@ async function executeTool(name, args, cwd) {
             case 'generate_diagram': return generateDiagram(args, cwd);
             case 'generate_image': return generateImage(args, cwd);
             case 'update_plan': return updatePlan(args);
+            case 'spawn_agent':
+            case 'run_parallel': {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const { executeWorkflowTool } = require('../workflow/tools');
+                return executeWorkflowTool(name, args, cwd);
+            }
             default: return { content: `Unknown tool: ${name}`, isError: true };
         }
     }
