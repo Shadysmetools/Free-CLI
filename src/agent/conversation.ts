@@ -86,6 +86,7 @@ export interface SystemPromptOptions {
   skillContext?: string;               // from SkillsManager.getSkillContext()
   profileContext?: string;             // from ProfileManager.buildSystemBlock()
   personaContext?: string;             // from PersonaManager.buildSystemBlock()
+  skillsCatalog?: string;              // from SkillsManager.getCatalog()
 }
 
 export function buildSystemPrompt(
@@ -156,6 +157,11 @@ You have access to tools for:
   // Persona / language context
   if (opts.personaContext) {
     prompt += opts.personaContext;
+  }
+
+  // Available-skills catalog (name + description only; bodies load on demand)
+  if (opts.skillsCatalog) {
+    prompt += opts.skillsCatalog;
   }
 
   return prompt;

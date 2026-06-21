@@ -4,6 +4,7 @@ import * as child_process from 'child_process';
 import { Tool } from '../providers/index';
 import { setPlan, normalizePlanItems, planToSteps, planSummary } from './plan';
 import { executeWebSearch, executeWebFetch } from '../bot/web_tools';
+import { getSkillsRuntime } from '../skills/runtime';
 
 // ─── PDF / Excel lazy imports (runtime-only, avoid tsc issues) ────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -295,6 +296,15 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'skill',
+    description: "Load the full instructions for a named skill from the Available Skills list. Call this when a listed skill is relevant before starting the task.",
+    parameters: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'The skill name from the Available Skills list' } },
+      required: ['name'],
+    },
+  },
+  {
     name: 'web_search',
     description: 'Search the web for current information, docs, or any topic. Returns titles, snippets, and URLs.',
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'The search query. Be specific.' } }, required: ['query'] },
@@ -328,6 +338,7 @@ export async function executeTool(
       case 'generate_diagram': return generateDiagram(args as { type?: string; code: string; output_path: string; format?: string; width?: number }, cwd);
       case 'generate_image': return generateImage(args as { prompt: string; output_path: string; size?: string; quality?: string; style?: string }, cwd);
       case 'update_plan': return updatePlan(args as { items: unknown });
+      case 'skill': return loadSkill(args as { name: string });
       case 'spawn_agent':
       case 'run_parallel': {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -346,6 +357,16 @@ export async function executeTool(
 function resolvePath(filePath: string, cwd: string): string {
   if (path.isAbsolute(filePath)) return filePath;
   return path.resolve(cwd, filePath);
+}
+
+/** Load a skill's full body on demand. Reaches the SkillsManager via the runtime holder. */
+export function loadSkill(args: { name: string }): { content: string; isError?: boolean } {
+  const mgr = getSkillsRuntime();
+  if (!mgr) return { content: 'Skills are not available in this context.', isError: true };
+  const name = String(args.name ?? '');
+  const s = mgr.activate(name);
+  if (!s) return { content: `Unknown skill "${name}". Available: ${mgr.list().map(x => x.name).join(', ')}`, isError: true };
+  return { content: s.body };
 }
 
 // ─── Plan / TODO ────────────────────────────────────────────────────────────────

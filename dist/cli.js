@@ -59,6 +59,8 @@ const markdown_1 = require("./ui/markdown");
 const chat_input_1 = require("./ui/chat-input");
 const index_2 = require("./memory/index");
 const index_3 = require("./skills/index");
+const runtime_1 = require("./skills/runtime");
+const activate_1 = require("./skills/activate");
 // ── Terminal cleanup on exit ──────────────────────────────────────────────────
 // Ensure raw mode is disabled and terminal is restored on ANY exit
 function cleanupTerminal() {
@@ -123,6 +125,7 @@ async function startCLI(opts = {}) {
     const memory = new index_2.MemoryManager(cwd);
     const skills = new index_3.SkillsManager(cwd);
     skills.loadAll();
+    (0, runtime_1.setSkillsRuntime)(skills);
     const tokenTracker = new tokens_1.TokenTracker();
     const registry = (0, index_4.createDefaultRegistry)();
     (0, index_9.registerWorkflowTools)(registry);
@@ -151,6 +154,7 @@ async function startCLI(opts = {}) {
         memoryContext: memory.getSystemContext(),
         profileContext: profile.buildSystemBlock(cwd),
         personaContext: persona.buildSystemBlock(),
+        skillsCatalog: skills.getCatalog(),
     });
     // ── History ───────────────────────────────────────────────────────────────
     const history = new index_5.HistoryManager(providerName, provider.model, cwd);
@@ -334,6 +338,14 @@ async function startCLI(opts = {}) {
                     }
                     // declined → fall through to normal chat
                 }
+                if (decision.kind === 'skill' && decision.target) {
+                    const r = (0, activate_1.activateSkill)(skills, decision.target, conversation);
+                    if (r.ok)
+                        (0, terminal_1.printInfo)(r.message);
+                    else
+                        (0, terminal_1.printError)(r.message);
+                    // fall through to runAgent with the skill now active (do NOT continue)
+                }
                 // 'skill' or 'chat' → fall through to runAgent (skill context auto-injected there)
             }
             catch { /* router must never break chat */ }
@@ -475,6 +487,19 @@ async function handleSlashCommand(input, ctx) {
             break;
         }
         // ── Skills ────────────────────────────────────────────────────────────────
+        case 'skill': {
+            const name = args[0];
+            if (!name) {
+                (0, terminal_1.printError)('Usage: /skill <name>   (list with /skills)');
+                break;
+            }
+            const r = (0, activate_1.activateSkill)(ctx.skills, name, ctx.conversation);
+            if (r.ok)
+                (0, terminal_1.printInfo)(r.message);
+            else
+                (0, terminal_1.printError)(r.message);
+            break;
+        }
         case 'skills': {
             const sub = args[0]?.toLowerCase();
             if (!sub || sub === 'list') {

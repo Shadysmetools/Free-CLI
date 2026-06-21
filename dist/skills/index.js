@@ -54,6 +54,7 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const os = __importStar(require("os"));
 const YAML = __importStar(require("yaml"));
+const hybrid_1 = require("../match/hybrid");
 class SkillsManager {
     constructor(cwd) {
         this.skills = new Map();
@@ -134,6 +135,22 @@ class SkillsManager {
     get(name) {
         return this.skills.get(name);
     }
+    /** Compact catalog (name — description) of enabled skills for the system prompt. '' when none. */
+    getCatalog() {
+        const enabled = this.list().filter(s => s.enabled);
+        if (enabled.length === 0)
+            return '';
+        const lines = enabled.map(s => `- ${s.name} — ${s.description}`).join('\n');
+        return `\n\n## Available Skills\nLoad a skill's full instructions with the \`skill\` tool (or /skill <name>) when one is relevant:\n${lines}\n`;
+    }
+    /** Look up + ensure enabled; returns the skill (with body) or undefined for an unknown name. */
+    activate(name) {
+        const s = this.skills.get(name);
+        if (!s)
+            return undefined;
+        s.enabled = true;
+        return s;
+    }
     /**
      * Auto-detect skills relevant to the user's message.
      * Uses keyword matching against name + description fields.
@@ -163,6 +180,36 @@ class SkillsManager {
      */
     getSkillContext(userMessage) {
         const relevant = this.detectRelevant(userMessage);
+        if (relevant.length === 0)
+            return '';
+        let context = '\n\n## Active Skills\n';
+        for (const skill of relevant) {
+            context += `\n### ${skill.name}\n${skill.body}\n`;
+        }
+        return context;
+    }
+    /** Matcher-based relevance (BM25-only, top-1). Async; never throws — keyword fallback on error. */
+    async detectRelevantHybrid(userMessage, deps = {}) {
+        try {
+            const hybrid = deps.hybrid ?? hybrid_1.hybridSearch;
+            const enabled = this.list().filter(s => s.enabled);
+            if (enabled.length === 0)
+                return [];
+            const docs = enabled.map(s => ({ id: s.name, text: `${s.name} ${s.description}` }));
+            const hits = await hybrid(userMessage, docs, { topK: 1 });
+            const top = hits[0];
+            if (!top)
+                return [];
+            const skill = this.skills.get(top.id);
+            return skill ? [skill] : [];
+        }
+        catch {
+            return this.detectRelevant(userMessage).slice(0, 1); // keyword fallback, top-1
+        }
+    }
+    /** Async skill context (top-1 body) for system-prompt injection. '' when nothing relevant. */
+    async getSkillContextAsync(userMessage, deps = {}) {
+        const relevant = await this.detectRelevantHybrid(userMessage, deps);
         if (relevant.length === 0)
             return '';
         let context = '\n\n## Active Skills\n';
@@ -234,6 +281,10 @@ List trigger conditions, keywords, or scenarios when this skill applies.
 
 ## Instructions
 Step-by-step instructions for the AI when this skill is active.
+
+## Resources
+Bundle extra files in this skill's folder (e.g. references/notes.md, scripts/run.sh)
+and point to them by relative path; the agent reads them on demand with read_file.
 
 ## Examples
 \`\`\`bash

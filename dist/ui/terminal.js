@@ -155,6 +155,7 @@ ${c.bold('SLASH COMMANDS')}
   ${c.green('/skills')}              List available skills
   ${c.green('/skills info')} <name>  Show skill details
   ${c.green('/skills add')} <name>   Create a new custom skill
+  ${c.green('/skill')} <name>        Activate a skill (load its full instructions)
 
   ${c.bold.dim('── Permissions ──────────────────────────────')}
   ${c.green('/permissions')}          Show permission rules (allow/ask/deny)

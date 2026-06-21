@@ -107,7 +107,7 @@ async function runAgent(providerArg, conversation, userMessage, options) {
         : undefined;
     // ── Skill injection ───────────────────────────────────────────────────────
     if (skills) {
-        const skillCtx = skills.getSkillContext(userMessage);
+        const skillCtx = await skills.getSkillContextAsync(userMessage);
         if (skillCtx) {
             const systemIdx = conversation.messages.findIndex(m => m.role === 'system');
             const existing = systemIdx >= 0 ? conversation.messages[systemIdx].content : '';

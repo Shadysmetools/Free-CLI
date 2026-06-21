@@ -13,6 +13,13 @@ export declare const fileChanges: FileChange[];
 export declare function rgPath(): string | null;
 export declare const TOOLS: Tool[];
 export declare function executeTool(name: string, args: Record<string, unknown>, cwd: string): Promise<ToolResult>;
+/** Load a skill's full body on demand. Reaches the SkillsManager via the runtime holder. */
+export declare function loadSkill(args: {
+    name: string;
+}): {
+    content: string;
+    isError?: boolean;
+};
 /**
  * Pure edit helper. Refuses ambiguous edits (old_text matching 0 or >1 places)
  * instead of silently replacing the first match and corrupting the file.
