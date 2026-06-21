@@ -1,4 +1,5 @@
 import { Provider, CompletionOptions, CompletionResult, Message } from './index';
+import { embed as embedTexts } from '../match/embeddings';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
@@ -101,6 +102,16 @@ export class OllamaProvider implements Provider {
         total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
       },
     };
+  }
+
+  /** Semantic embeddings via Ollama /api/embed. Reuses the tested match/embeddings logic. */
+  async embed(texts: string[], model: string): Promise<number[][] | null> {
+    return embedTexts(texts, {
+      baseUrl: this.baseUrl,
+      model,
+      // this.httpPost returns the raw body string; embedTexts JSON-parses it.
+      httpPost: (url, body) => this.httpPost(url, body as object),
+    });
   }
 
   private async streamComplete(
