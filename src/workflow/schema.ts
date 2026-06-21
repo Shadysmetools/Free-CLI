@@ -42,6 +42,7 @@ export function validateWorkflow(def: unknown): { ok: true; def: WorkflowDef } |
       if (s.type === 'pipeline' && !Array.isArray(s.stages)) errors.push(`step ${s.id}: pipeline step needs stages[]`);
     }
     for (const s of d.steps) {
+      if (!s || typeof s.id !== 'string' || !s.id.trim()) continue;
       for (const dep of s.depends_on ?? []) if (!ids.has(dep)) errors.push(`step ${s.id}: depends_on unknown step "${dep}"`);
     }
     if (errors.length === 0) {
@@ -53,9 +54,8 @@ export function validateWorkflow(def: unknown): { ok: true; def: WorkflowDef } |
 
 /** Kahn's algorithm → dependency levels. Throws "dependency cycle: …" if not a DAG. */
 export function topoOrder(steps: WorkflowStep[]): string[][] {
-  const indeg = new Map<string, number>();
   const deps = new Map<string, string[]>();
-  for (const s of steps) { indeg.set(s.id, (s.depends_on ?? []).length); deps.set(s.id, s.depends_on ?? []); }
+  for (const s of steps) { deps.set(s.id, s.depends_on ?? []); }
   const levels: string[][] = [];
   const done = new Set<string>();
   while (done.size < steps.length) {
