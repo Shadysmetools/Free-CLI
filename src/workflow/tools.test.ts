@@ -38,4 +38,29 @@ describe('workflow runtime + dynamic tools', () => {
     expect(res.isError).toBeFalsy();
     expect(res.content).toBe('sub-agent says hi');
   });
+
+  it('run_parallel fans out tasks and labels each by its input role', async () => {
+    setWorkflowRuntime({
+      settings: getDefaultSettings(), defaultProviderName: 'ollama',
+      parentRegistry: new ToolRegistry(),
+      cwd: process.cwd(), providerFactory: () => fakeProvider('sub-result'),
+    });
+    const res = await executeWorkflowTool('run_parallel', { tasks: [
+      { role: 'coder', task: 'do a' },
+      { role: 'reviewer', task: 'do b' },
+    ]}, process.cwd());
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain('(coder)');
+    expect(res.content).toContain('(reviewer)');
+    expect(res.content).toContain('sub-result');
+  });
+
+  it('run_parallel errors cleanly on empty tasks', async () => {
+    setWorkflowRuntime({
+      settings: getDefaultSettings(), defaultProviderName: 'ollama',
+      parentRegistry: new ToolRegistry(), cwd: process.cwd(), providerFactory: () => fakeProvider('x'),
+    });
+    const res = await executeWorkflowTool('run_parallel', { tasks: [] }, process.cwd());
+    expect(res.isError).toBe(true);
+  });
 });

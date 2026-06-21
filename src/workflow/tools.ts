@@ -60,7 +60,7 @@ export async function executeWorkflowTool(name: string, args: Record<string, unk
     if (tasks.length === 0) return { content: 'run_parallel: tasks[] is required and must be non-empty.', isError: true };
     const conc = ctx.defaultProviderName === 'ollama' ? 1 : 4;
     const results = await parallel(tasks.map(t => () => runSubAgent({ role: t.role, task: t.task }, ctx)), { concurrency: conc });
-    const joined = results.map((r, i) => `### Sub-agent ${i + 1}${r?.role ? ` (${r.role})` : ''}\n${r?.content ?? '[failed]'}`).join('\n\n');
+    const joined = results.map((r, i) => `### Sub-agent ${i + 1}${tasks[i]?.role ? ` (${tasks[i].role})` : ''}\n${r?.content ?? '[failed]'}`).join('\n\n');
     return { content: joined, isError: results.some(r => !r || !r.ok) };
   }
   return { content: `Unknown workflow tool: ${name}`, isError: true };
