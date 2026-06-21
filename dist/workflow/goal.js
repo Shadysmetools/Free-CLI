@@ -48,6 +48,7 @@ const runner_1 = require("./runner");
 const plan_1 = require("../agent/plan");
 const terminal_1 = require("../ui/terminal");
 const tools_1 = require("../agent/tools");
+const permissions_1 = require("../permissions");
 /** Parse a planner's free text into plan items: JSON array first, else numbered/bulleted lines. */
 function parsePlan(text) {
     const t = text.trim();
@@ -62,8 +63,42 @@ function parsePlan(text) {
         .filter(l => l.length > 0)
         .map(content => ({ content, status: 'pending' }));
 }
-/** Default external verifier: run the command via run_command, pass = non-error exit. */
-async function defaultVerify(cmd, cwd) {
+/** Default external verifier: run the command via run_command, pass = non-error exit.
+ *  When a permissions Rules object is available, the command is routed through gate()
+ *  so that the user's allow-list and deny rules are honoured. If permissions are disabled
+ *  (rules === undefined) the call falls back to the original ungated behaviour.
+ *
+ *  Allow-entry semantics for run_command:
+ *    - The gate's classify() uses the command string as the subject (not the tool name).
+ *    - opts.allow entries are merged into both rules.allow (for glob matching) and
+ *      sessionAllow (for exact matching).
+ *    - A bare 'run_command' entry in opts.allow does NOT match via glob (the subject is
+ *      the command string, not the tool name). To bridge this, if 'run_command' appears
+ *      in sessionAllow (indicating a broad pre-authorisation of shell commands for this
+ *      goal run), the specific verify command is added to sessionAllow so the gate lets
+ *      it through silently. */
+async function defaultVerify(cmd, cwd, goalCtx) {
+    if (goalCtx?.permissions) {
+        // Clone sessionAllow so we don't mutate the shared set; if 'run_command' was
+        // pre-authorised as a blanket grant, also admit the specific command string.
+        const sessionAllow = new Set(goalCtx.sessionAllow ?? []);
+        // Bridge: a pre-authorized 'run_command' grant covers THIS verify command
+        // (including an auto-detected one like `npm test`). The gate matches run_command
+        // by command string, so add the concrete command to the goal-local allow set.
+        if (sessionAllow.has('run_command'))
+            sessionAllow.add(cmd);
+        const gateCtx = {
+            cwd: goalCtx.cwd,
+            rules: goalCtx.permissions,
+            isInteractive: Boolean(process.stdout.isTTY) && !goalCtx.unattended,
+            sessionAllow,
+            persistAllow: permissions_1.persistAllowPattern,
+        };
+        const decision = await (0, permissions_1.gate)('run_command', { command: cmd }, gateCtx);
+        if (!decision.allowed) {
+            return { passed: false, output: `verify command not permitted by gate: ${decision.reasonForModel ?? ''}` };
+        }
+    }
     const res = await (0, tools_1.executeTool)('run_command', { command: cmd }, cwd);
     return { passed: !res.isError, output: res.content };
 }
@@ -83,7 +118,6 @@ function defaultDetect(cwd) {
 }
 async function runGoal(opts, ctx, deps = {}) {
     const runSubAgent = deps.runSubAgent ?? runner_1.runSubAgent;
-    const verify = deps.verify ?? defaultVerify;
     const detect = deps.detectVerifyCommand ?? defaultDetect;
     const render = deps.render !== false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,6 +130,8 @@ async function runGoal(opts, ctx, deps = {}) {
     for (const a of opts.allow)
         sessionAllow.add(a);
     const goalCtx = { ...ctx, sessionAllow };
+    // Resolve verify after goalCtx so the default path can pass it to the gate.
+    const verify = deps.verify ?? ((cmd, cwd) => defaultVerify(cmd, cwd, goalCtx));
     const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
     const addUsage = (u) => { if (u) {
         usage.prompt_tokens += u.prompt_tokens;

@@ -62,6 +62,9 @@ async function defaultVerify(
     // Clone sessionAllow so we don't mutate the shared set; if 'run_command' was
     // pre-authorised as a blanket grant, also admit the specific command string.
     const sessionAllow = new Set<string>(goalCtx.sessionAllow ?? []);
+    // Bridge: a pre-authorized 'run_command' grant covers THIS verify command
+    // (including an auto-detected one like `npm test`). The gate matches run_command
+    // by command string, so add the concrete command to the goal-local allow set.
     if (sessionAllow.has('run_command')) sessionAllow.add(cmd);
 
     const gateCtx = {
