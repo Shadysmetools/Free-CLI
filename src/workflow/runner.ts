@@ -64,7 +64,7 @@ export function buildScopedRegistry(parent: ToolRegistry, allowed?: string[]): T
     const found = all.find(t => t.name === name);
     if (found) return { tool: asTool(found), category: found.category, source: found.source };
     const builtin = TOOLS.find(t => t.name === name);
-    if (builtin) return { tool: builtin, category: 'file', source: 'builtin' };
+    if (builtin) return { tool: builtin, category: 'custom', source: 'builtin' };
     return undefined;
   }
 
@@ -122,8 +122,9 @@ export async function runSubAgent(spec: SubAgentSpec, ctx: RunnerContext): Promi
       sessionAllow: ctx.sessionAllow,
     });
     // runAgent catches provider errors internally and returns { content: 'Error: <msg>' }
-    // rather than throwing. Detect that sentinel so runSubAgent still reports ok:false.
-    if (result.content.startsWith('Error: ')) {
+    // with no `usage` field, rather than throwing. Require BOTH conditions to avoid
+    // mis-classifying a legitimate answer that begins with "Error: " as a failure.
+    if (!result.usage && result.content.startsWith('Error: ')) {
       const msg = result.content.slice('Error: '.length);
       return { ok: false, content: result.content, role: spec.role, task: spec.task, error: msg };
     }

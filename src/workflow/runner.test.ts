@@ -71,4 +71,12 @@ describe('runSubAgent', () => {
     expect(res.ok).toBe(false);
     expect(res.error).toContain('provider exploded');
   });
+
+  it('does NOT mark a legitimate answer starting with "Error: " as failed', async () => {
+    const p: any = { name: 'fake', model: 'x', async isAvailable() { return true; },
+      async complete() { return { content: 'Error: this is a normal explanation of an error in user code', usage: { prompt_tokens:1, completion_tokens:1, total_tokens:2 } }; } };
+    const res = await runSubAgent({ task: 'explain the bug' }, baseCtx(p));
+    expect(res.ok).toBe(true);
+    expect(res.content).toContain('normal explanation');
+  });
 });
