@@ -53,12 +53,50 @@ export function looksLikeToolAttempt(content: string): boolean {
 }
 
 /**
- * Trim a conversation to fit a character budget WITHOUT orphaning tool-result
- * messages. Providers (Anthropic/OpenAI/Groq) return 400 if a `tool` message is
- * not immediately preceded by the assistant message carrying its tool_calls, so
- * after trimming we drop any leading `tool` messages left at the front.
+ * Estimate the number of tokens in a piece of text.
+ *
+ * This is a deliberately dependency-free heuristic: most byte-pair tokenizers
+ * (GPT/Claude/Llama families) average roughly 4 characters per token for typical
+ * English + code, so ceil(chars / 4) is a good-enough budgeting proxy for a
+ * local-first tool that must not reach for the network or a heavy tokenizer dep.
+ * It intentionally OVER-estimates slightly (ceil) so we trim conservatively and
+ * stay safely under real provider context windows.
  */
-export function trimMessages(messages: Message[], contextLimit: number, minKeep = 5): Message[] {
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Per-provider context budgets, expressed in ESTIMATED TOKENS (see
+ * estimateTokens). These mirror each provider's real context window with a
+ * safety margin reserved for the system prompt, tool schemas, and the model's
+ * own completion. `trimMessages` is fed these via the estimateTokens measure.
+ */
+export const CONTEXT_TOKEN_LIMITS: Record<string, number> = {
+  groq: 6_000,
+  openrouter: 20_000,
+  anthropic: 50_000,
+  ollama: 15_000,
+  google: 50_000,
+};
+
+/**
+ * Trim a conversation to fit a budget WITHOUT orphaning tool-result messages.
+ * Providers (Anthropic/OpenAI/Groq) return 400 if a `tool` message is not
+ * immediately preceded by the assistant message carrying its tool_calls, so
+ * after trimming we drop any leading `tool` messages left at the front.
+ *
+ * The budget is measured by `measure`, which defaults to raw character length
+ * (the original behaviour). Pass `estimateTokens` to budget by ESTIMATED TOKENS
+ * instead — the agent loop does this so history is managed in token space.
+ */
+export function trimMessages(
+  messages: Message[],
+  contextLimit: number,
+  minKeep = 5,
+  measure: (text: string) => number = (t) => t.length,
+): Message[] {
   const systemMsgs = messages.filter(m => m.role === 'system');
   const nonSystem = messages.filter(m => m.role !== 'system');
 
@@ -68,7 +106,7 @@ export function trimMessages(messages: Message[], contextLimit: number, minKeep 
     }
   }
 
-  const total = () => [...systemMsgs, ...nonSystem].reduce((s, m) => s + m.content.length, 0);
+  const total = () => [...systemMsgs, ...nonSystem].reduce((s, m) => s + measure(m.content), 0);
   if (total() <= contextLimit) return messages;
 
   while (nonSystem.length > minKeep && total() > contextLimit) {
@@ -146,17 +184,13 @@ export async function runAgent(
   let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   let repairedOnce = false;
 
-  const CONTEXT_CHAR_LIMITS: Record<string, number> = {
-    groq: 24_000,
-    openrouter: 80_000,
-    anthropic: 200_000,
-    ollama: 60_000,
-    google: 200_000,
-  };
-  const contextLimit = CONTEXT_CHAR_LIMITS[provider.name] ?? 60_000;
+  // Manage history by ESTIMATED TOKENS (see estimateTokens / CONTEXT_TOKEN_LIMITS)
+  // rather than raw characters, so the kept window maps to the model's real
+  // context window regardless of how token-dense the text is.
+  const contextLimit = CONTEXT_TOKEN_LIMITS[provider.name] ?? 15_000;
 
   function trimConversation(minKeep = 5): void {
-    conversation.messages = trimMessages(conversation.messages, contextLimit, minKeep);
+    conversation.messages = trimMessages(conversation.messages, contextLimit, minKeep, estimateTokens);
   }
 
   while (iterations < maxIterations) {
