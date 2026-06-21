@@ -41,6 +41,12 @@ describe('hybridSearch', () => {
     expect(res[0].id).toBe('deploy');
   });
 
+  it('falls back to BM25-only when embed throws', async () => {
+    const embed = vi.fn(async () => { throw new Error('embed network failure'); });
+    const res = await hybridSearch('deploy production', DOCS, { embed });
+    expect(res[0].id).toBe('deploy');
+  });
+
   it('caches embeddings: a repeated identical search does not re-embed', async () => {
     const embed = vi.fn(async (texts: string[]) => texts.map(() => [1, 0, 0]));
     await hybridSearch('deploy production', DOCS, { embed });

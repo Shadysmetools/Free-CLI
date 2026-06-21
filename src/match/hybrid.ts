@@ -68,7 +68,7 @@ export async function hybridSearch(query: string, docs: MatchDoc[], opts: Hybrid
     fused.push({ id, score });
   }
 
-  const max = Math.max(...fused.map(f => f.score), 1e-9);
+  const max = fused.reduce((m, f) => (f.score > m ? f.score : m), 1e-9);
   return fused
     .map(f => ({ id: f.id, score: f.score / max }))
     .sort((a, b) => b.score - a.score)
