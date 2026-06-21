@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getDefaultSettings = getDefaultSettings;
 exports.loadSettings = loadSettings;
 exports.saveSettings = saveSettings;
 exports.getConfigDir = getConfigDir;
@@ -91,9 +92,13 @@ const DEFAULT_SETTINGS = {
         confirmDefault: 'approve',
     },
 };
+/** Return a fresh deep clone of the built-in default settings (no file/env reads). */
+function getDefaultSettings() {
+    return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
 function loadSettings() {
     // Start with defaults
-    let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    let settings = getDefaultSettings();
     // Load from config file
     if (fs.existsSync(CONFIG_FILE)) {
         try {

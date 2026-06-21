@@ -42,6 +42,7 @@ const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
 const chalk_1 = __importDefault(require("chalk"));
 const settings_1 = require("./config/settings");
+const wizard_1 = require("./setup/wizard");
 const project_1 = require("./config/project");
 const index_1 = require("./providers/index");
 const fallback_1 = require("./providers/fallback");
@@ -81,6 +82,13 @@ const roles_1 = require("./agents/roles");
 const index_7 = require("./diagrams/index");
 const index_8 = require("./persona/index");
 async function startCLI(opts = {}) {
+    // ── First-run onboarding ───────────────────────────────────────────────────
+    // Run the friendly setup wizard ONLY on a genuine first run (no config.yaml
+    // and no setup-complete marker), before any one-shot or REPL handling. Existing
+    // users (who already have %APPDATA%\coderaw\config.yaml) are never disrupted.
+    if ((0, wizard_1.isFirstRun)()) {
+        await (0, wizard_1.runOnboardingWizard)();
+    }
     const settings = (0, settings_1.loadSettings)();
     const cwd = opts.cwd || process.cwd();
     const projectConfig = (0, project_1.loadProjectConfig)(cwd);

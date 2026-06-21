@@ -41,6 +41,8 @@ export interface Settings {
         confirmDefault?: 'approve' | 'skip';
     };
 }
+/** Return a fresh deep clone of the built-in default settings (no file/env reads). */
+export declare function getDefaultSettings(): Settings;
 export declare function loadSettings(): Settings;
 export declare function saveSettings(settings: Settings): void;
 export declare function getConfigDir(): string;

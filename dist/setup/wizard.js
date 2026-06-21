@@ -40,9 +40,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildSettingsFromAnswers = buildSettingsFromAnswers;
+exports.isFirstRun = isFirstRun;
 exports.isSetupComplete = isSetupComplete;
 exports.autoDetectProvider = autoDetectProvider;
 exports.silentAutoDetect = silentAutoDetect;
+exports.runOnboardingWizard = runOnboardingWizard;
 exports.runSetupWizard = runSetupWizard;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
@@ -104,7 +107,50 @@ async function detectProviders() {
         model: 'devstral-small-latest', reason: mistralKey ? 'MISTRAL_API_KEY found' : 'no MISTRAL_API_KEY' });
     return results;
 }
-// ─── Public API ───────────────────────────────────────────────────────────────
+/**
+ * Pure mapping: wizard answers → a valid Settings object.
+ *
+ * Starts from the built-in defaults (so every untouched provider, the ui block,
+ * permissions, etc. are preserved) and overlays only what the user chose:
+ *   - selects the provider as the default
+ *   - places the model on both `defaultModel` and the provider config
+ *   - places the api key (cloud/custom) and base URL (custom) on the provider
+ *
+ * No file or environment reads — fully unit-testable.
+ */
+function buildSettingsFromAnswers(answers) {
+    const settings = (0, settings_1.getDefaultSettings)();
+    const { provider } = answers;
+    // Ensure the provider config object exists (covers any unknown provider id).
+    const current = settings.providers[provider] ?? {};
+    const model = answers.model?.trim() || current.model;
+    const providerConfig = { ...current };
+    if (model)
+        providerConfig.model = model;
+    if (answers.apiKey && answers.apiKey.trim())
+        providerConfig.apiKey = answers.apiKey.trim();
+    if (answers.baseUrl && answers.baseUrl.trim())
+        providerConfig.baseUrl = answers.baseUrl.trim();
+    settings.providers[provider] = providerConfig;
+    settings.defaultProvider = provider;
+    if (model)
+        settings.defaultModel = model;
+    return settings;
+}
+/**
+ * True only on a genuine first run — when NO config file exists yet AND the
+ * setup-complete marker is absent. Conservative by design: if either artifact
+ * is present, an existing user has already configured coderaw and the wizard
+ * must NOT fire (it would otherwise overwrite a working %APPDATA%\coderaw setup).
+ */
+function isFirstRun() {
+    const configFile = path.join((0, settings_1.getConfigDir)(), 'config.yaml');
+    if (fs.existsSync(configFile))
+        return false;
+    if (fs.existsSync(SETUP_DONE_FILE))
+        return false;
+    return true;
+}
 function isSetupComplete() {
     if (!fs.existsSync(SETUP_DONE_FILE))
         return false;
@@ -141,6 +187,93 @@ async function silentAutoDetect() {
         return { provider: 'ollama', model };
     }
     return null;
+}
+// ─── First-Run Onboarding Wizard ──────────────────────────────────────────────
+//
+// A short, friendly, skippable guided flow (Claude-Code style). Local Ollama is
+// the default (free/offline). Cloud + custom providers prompt for an API key
+// (and base URL for custom). Everything accepts Enter to take the default.
+//
+// The interactive inquirer prompts are intentionally thin — all the answer→config
+// logic lives in the pure `buildSettingsFromAnswers` above.
+/** Provider menu metadata: label + default model + whether a key is required. */
+const ONBOARD_PROVIDERS = {
+    ollama: { label: 'Local — Ollama (free, offline) — recommended', model: 'qwen2.5-coder:7b' },
+    anthropic: { label: 'Anthropic Claude (cloud)', model: 'claude-3-5-haiku-20241022', keyUrl: 'https://console.anthropic.com' },
+    openai: { label: 'OpenAI GPT (cloud)', model: 'gpt-4o-mini', keyUrl: 'https://platform.openai.com' },
+    google: { label: 'Google Gemini (cloud)', model: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com' },
+    groq: { label: 'Groq (cloud, fast)', model: 'llama-3.3-70b-versatile', keyUrl: 'https://console.groq.com' },
+    openrouter: { label: 'OpenRouter (cloud)', model: 'openrouter/free', keyUrl: 'https://openrouter.ai/keys' },
+    custom: { label: 'Custom — OpenAI-compatible endpoint', model: 'gpt-4o-mini', keyUrl: '' },
+};
+/**
+ * Friendly first-run onboarding. Collects answers via inquirer, maps them with
+ * the pure `buildSettingsFromAnswers`, persists via `saveSettings`, writes the
+ * setup-complete marker, prints a confirmation, then returns so the caller can
+ * fall through into the normal session.
+ */
+async function runOnboardingWizard() {
+    console.log(`
+${chalk_1.default.cyan('┌─────────────────────────────────────────────┐')}
+${chalk_1.default.cyan('│')}  ${chalk_1.default.bold.cyan('⚡ Welcome to coderaw!')}                      ${chalk_1.default.cyan('│')}
+${chalk_1.default.cyan('│')}  ${chalk_1.default.dim('Let\'s get you set up — takes 30 seconds.')}   ${chalk_1.default.cyan('│')}
+${chalk_1.default.cyan('└─────────────────────────────────────────────┘')}
+`);
+    console.log(chalk_1.default.dim('  Tip: press Enter to accept the [default] at any step.\n'));
+    // ── Step 1: provider ────────────────────────────────────────────────────────
+    const providerChoices = Object.entries(ONBOARD_PROVIDERS).map(([id, meta]) => ({
+        name: meta.label,
+        value: id,
+    }));
+    const { provider } = await inquirer.prompt([{
+            type: 'list',
+            name: 'provider',
+            message: 'Which AI provider would you like to use?',
+            choices: providerChoices,
+            default: 'ollama',
+        }]);
+    const meta = ONBOARD_PROVIDERS[provider] ?? ONBOARD_PROVIDERS.ollama;
+    const answers = { provider };
+    // ── Step 2: base URL (custom only) ──────────────────────────────────────────
+    if (provider === 'custom') {
+        const { baseUrl } = await inquirer.prompt([{
+                type: 'input',
+                name: 'baseUrl',
+                message: 'Base URL of your OpenAI-compatible endpoint:',
+                default: 'http://localhost:8000/v1',
+            }]);
+        answers.baseUrl = baseUrl.trim();
+    }
+    // ── Step 3: API key (cloud + custom) ────────────────────────────────────────
+    if (provider !== 'ollama') {
+        if (meta.keyUrl) {
+            console.log(chalk_1.default.dim(`\n  Get an API key at: ${chalk_1.default.cyan(meta.keyUrl)}`));
+        }
+        const { apiKey } = await inquirer.prompt([{
+                type: 'password',
+                name: 'apiKey',
+                message: `Enter your ${provider.toUpperCase()} API key:`,
+                mask: '•',
+            }]);
+        answers.apiKey = apiKey.trim();
+    }
+    // ── Step 4: model (confirm/override default) ────────────────────────────────
+    const { model } = await inquirer.prompt([{
+            type: 'input',
+            name: 'model',
+            message: 'Which model? (Enter to accept default)',
+            default: meta.model,
+        }]);
+    answers.model = model.trim() || meta.model;
+    // ── Persist + mark complete ─────────────────────────────────────────────────
+    const settings = buildSettingsFromAnswers(answers);
+    (0, settings_1.saveSettings)(settings);
+    markSetupComplete();
+    console.log(chalk_1.default.green(`\n✅ You're all set! Using ${chalk_1.default.bold(provider)} / ${chalk_1.default.bold(answers.model)}.`));
+    if (provider === 'ollama') {
+        console.log(chalk_1.default.dim(`  Make sure Ollama is running:  ollama pull ${answers.model} && ollama serve`));
+    }
+    console.log(chalk_1.default.dim('  Re-run anytime with:  coderaw setup   ·   Type /help for commands.\n'));
 }
 // ─── Setup Wizard ─────────────────────────────────────────────────────────────
 async function runSetupWizard(force = false) {
