@@ -103,9 +103,14 @@ const DEFAULT_SETTINGS: Settings = {
   },
 };
 
+/** Return a fresh deep clone of the built-in default settings (no file/env reads). */
+export function getDefaultSettings(): Settings {
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as Settings;
+}
+
 export function loadSettings(): Settings {
   // Start with defaults
-  let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as Settings;
+  let settings = getDefaultSettings();
 
   // Load from config file
   if (fs.existsSync(CONFIG_FILE)) {

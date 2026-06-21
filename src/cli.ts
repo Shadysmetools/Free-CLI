@@ -5,6 +5,7 @@ import * as child_process from 'child_process';
 import chalk from 'chalk';
 
 import { loadSettings, saveSettings } from './config/settings';
+import { isFirstRun, runOnboardingWizard } from './setup/wizard';
 import { loadProjectConfig } from './config/project';
 import { createProvider, PROVIDER_INFO, PROVIDER_MODELS } from './providers/index';
 import { checkAllProviders } from './providers/fallback';
@@ -50,6 +51,14 @@ export interface CLIOptions {
 }
 
 export async function startCLI(opts: CLIOptions = {}): Promise<void> {
+  // ── First-run onboarding ───────────────────────────────────────────────────
+  // Run the friendly setup wizard ONLY on a genuine first run (no config.yaml
+  // and no setup-complete marker), before any one-shot or REPL handling. Existing
+  // users (who already have %APPDATA%\coderaw\config.yaml) are never disrupted.
+  if (isFirstRun()) {
+    await runOnboardingWizard();
+  }
+
   const settings = loadSettings();
   const cwd = opts.cwd || process.cwd();
   const projectConfig = loadProjectConfig(cwd);
