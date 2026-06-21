@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fileChanges = void 0;
 exports.looksLikeToolAttempt = looksLikeToolAttempt;
+exports.trimMessages = trimMessages;
 exports.runAgent = runAgent;
 const conversation_1 = require("./conversation");
 const tools_1 = require("./tools");
@@ -23,6 +24,32 @@ function looksLikeToolAttempt(content) {
     if (/"name"\s*:/.test(t) && /"(arguments|parameters)"\s*:/.test(t))
         return true;
     return false;
+}
+/**
+ * Trim a conversation to fit a character budget WITHOUT orphaning tool-result
+ * messages. Providers (Anthropic/OpenAI/Groq) return 400 if a `tool` message is
+ * not immediately preceded by the assistant message carrying its tool_calls, so
+ * after trimming we drop any leading `tool` messages left at the front.
+ */
+function trimMessages(messages, contextLimit, minKeep = 5) {
+    const systemMsgs = messages.filter(m => m.role === 'system');
+    const nonSystem = messages.filter(m => m.role !== 'system');
+    for (const m of nonSystem) {
+        if (m.role === 'tool' && m.content.length > 500) {
+            m.content = m.content.slice(0, 500) + '\n…[truncated]';
+        }
+    }
+    const total = () => [...systemMsgs, ...nonSystem].reduce((s, m) => s + m.content.length, 0);
+    if (total() <= contextLimit)
+        return messages;
+    while (nonSystem.length > minKeep && total() > contextLimit) {
+        nonSystem.shift();
+    }
+    // Never start the kept window on an orphaned tool result.
+    while (nonSystem.length > 0 && nonSystem[0].role === 'tool') {
+        nonSystem.shift();
+    }
+    return [...systemMsgs, ...nonSystem];
 }
 async function runAgent(providerArg, conversation, userMessage, options) {
     let provider = providerArg;
@@ -83,24 +110,7 @@ async function runAgent(providerArg, conversation, userMessage, options) {
     };
     const contextLimit = CONTEXT_CHAR_LIMITS[provider.name] ?? 60000;
     function trimConversation(minKeep = 5) {
-        const msgs = conversation.messages;
-        const systemMsgs = msgs.filter(m => m.role === 'system');
-        const nonSystem = msgs.filter(m => m.role !== 'system');
-        for (const m of nonSystem) {
-            if (m.role === 'tool' && m.content.length > 500) {
-                m.content = m.content.slice(0, 500) + '\n…[truncated]';
-            }
-        }
-        const totalChars = msgs.reduce((sum, m) => sum + m.content.length, 0);
-        if (totalChars <= contextLimit)
-            return;
-        while (nonSystem.length > minKeep) {
-            const totalNow = [...systemMsgs, ...nonSystem].reduce((sum, m) => sum + m.content.length, 0);
-            if (totalNow <= contextLimit)
-                break;
-            nonSystem.shift();
-        }
-        conversation.messages = [...systemMsgs, ...nonSystem];
+        conversation.messages = trimMessages(conversation.messages, contextLimit, minKeep);
     }
     while (iterations < maxIterations) {
         iterations++;

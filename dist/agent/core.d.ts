@@ -1,4 +1,4 @@
-import { Provider } from '../providers/index';
+import { Provider, Message } from '../providers/index';
 import { ConversationState } from './conversation';
 import { fileChanges } from './tools';
 import { MCPClient } from '../mcp/client';
@@ -33,6 +33,13 @@ export interface AgentResult {
 }
 /** Heuristic: the model tried to call a tool but emitted broken/partial JSON. */
 export declare function looksLikeToolAttempt(content: string): boolean;
+/**
+ * Trim a conversation to fit a character budget WITHOUT orphaning tool-result
+ * messages. Providers (Anthropic/OpenAI/Groq) return 400 if a `tool` message is
+ * not immediately preceded by the assistant message carrying its tool_calls, so
+ * after trimming we drop any leading `tool` messages left at the front.
+ */
+export declare function trimMessages(messages: Message[], contextLimit: number, minKeep?: number): Message[];
 export declare function runAgent(providerArg: Provider, conversation: ConversationState, userMessage: string, options: AgentOptions): Promise<AgentResult>;
 export { fileChanges };
 //# sourceMappingURL=core.d.ts.map
