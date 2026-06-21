@@ -105,30 +105,49 @@ export async function runSubAgent(spec: SubAgentSpec, ctx: RunnerContext): Promi
   const allowedTools = spec.tools ?? role?.allowedTools;
   const scoped = buildScopedRegistry(ctx.parentRegistry, allowedTools);
 
+  const maxRetries = Math.max(0, spec.maxRetries ?? 2);
   try {
     const provider = resolveProvider(spec, ctx);
-    const conv = createConversation(systemPrompt);
-    const result = await runAgent(provider, conv, spec.task, {
-      cwd: ctx.cwd,
-      stream: false,
-      maxIterations: spec.maxIterations ?? 6,
-      registry: scoped,
-      mcpClient: ctx.mcpClient,
-      memory: ctx.memory,
-      skills: ctx.skills,
-      tokenTracker: ctx.tokenTracker,
-      permissions: ctx.permissions,
-      unattended: ctx.unattended,
-      sessionAllow: ctx.sessionAllow,
-    });
-    // runAgent catches provider errors internally and returns { content: 'Error: <msg>' }
-    // with no `usage` field, rather than throwing. Require BOTH conditions to avoid
-    // mis-classifying a legitimate answer that begins with "Error: " as a failure.
-    if (!result.usage && result.content.startsWith('Error: ')) {
-      const msg = result.content.slice('Error: '.length);
-      return { ok: false, content: result.content, role: spec.role, task: spec.task, error: msg };
+    let lastContent = '';
+    let lastUsage: SubAgentResult['usage'];
+    let feedback = '';
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const conv = createConversation(systemPrompt);
+      const task = feedback
+        ? `${spec.task}\n\n[Revise — previous attempt failed validation: ${feedback}]`
+        : spec.task;
+      const result = await runAgent(provider, conv, task, {
+        cwd: ctx.cwd,
+        stream: false,
+        maxIterations: spec.maxIterations ?? 6,
+        registry: scoped,
+        mcpClient: ctx.mcpClient,
+        memory: ctx.memory,
+        skills: ctx.skills,
+        tokenTracker: ctx.tokenTracker,
+        permissions: ctx.permissions,
+        unattended: ctx.unattended,
+        sessionAllow: ctx.sessionAllow,
+      });
+      lastContent = result.content;
+      lastUsage = result.usage;
+      // runAgent catches provider errors internally and returns { content: 'Error: <msg>' }
+      // with no `usage` field, rather than throwing. Require BOTH conditions to avoid
+      // mis-classifying a legitimate answer that begins with "Error: " as a failure.
+      if (!result.usage && result.content.startsWith('Error: ')) {
+        const msg = result.content.slice('Error: '.length);
+        return { ok: false, content: result.content, role: spec.role, task: spec.task, error: msg };
+      }
+      if (!spec.validate) {
+        return { ok: true, content: lastContent, role: spec.role, task: spec.task, usage: lastUsage };
+      }
+      const verdict = spec.validate(lastContent);
+      if (verdict.ok) {
+        return { ok: true, content: lastContent, role: spec.role, task: spec.task, usage: lastUsage };
+      }
+      feedback = verdict.feedback ?? 'output rejected by guardrail';
     }
-    return { ok: true, content: result.content, role: spec.role, task: spec.task, usage: result.usage };
+    return { ok: false, content: lastContent, role: spec.role, task: spec.task, usage: lastUsage, error: `guardrail failed after ${maxRetries + 1} attempts` };
   } catch (err) {
     const msg = (err as Error).message;
     return { ok: false, content: msg, role: spec.role, task: spec.task, error: msg };

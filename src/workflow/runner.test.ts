@@ -80,3 +80,30 @@ describe('runSubAgent', () => {
     expect(res.content).toContain('normal explanation');
   });
 });
+
+describe('runSubAgent guardrail + retry', () => {
+  it('retries with feedback until validate passes', async () => {
+    let call = 0;
+    const p: any = { name: 'fake', model: 'x', async isAvailable() { return true; },
+      async complete() { call++; return { content: call < 3 ? 'bad' : 'good', usage: { prompt_tokens:1, completion_tokens:1, total_tokens:2 } }; } };
+    const ctx = baseCtx(p);
+    const res = await runSubAgent({
+      task: 'produce good', maxRetries: 3,
+      validate: (c) => ({ ok: c === 'good', feedback: 'must say good' }),
+    }, ctx);
+    expect(res.ok).toBe(true);
+    expect(res.content).toBe('good');
+    expect(call).toBe(3); // 1 initial + 2 retries
+  });
+
+  it('returns the last attempt (ok:false) when retries are exhausted', async () => {
+    const p = fakeProvider('still bad');
+    const res = await runSubAgent({
+      task: 'go', maxRetries: 1,
+      validate: () => ({ ok: false, feedback: 'nope' }),
+    }, baseCtx(p));
+    expect(res.ok).toBe(false);
+    expect(res.content).toBe('still bad');
+    expect(res.error).toContain('guardrail');
+  });
+});
